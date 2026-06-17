@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl *)",
+      "PowerShell($html = Get-Content \"C:\\\\Users\\\\Dawid\\\\WebstormProjects\\\\FlowCars\\\\debug\\\\1781733341437-https-www-otomoto-pl-osobowe-gliwice-.html\" -Raw; $matches2 = [regex]::Matches\\($html, 'https://www\\\\.otomoto\\\\.pl/osobowe/oferta/[^\"]+\\\\.html'\\); $matches2 | Select-Object -First 5 | ForEach-Object { $_.Value })",
+      "PowerShell($html = Get-Content \"C:\\\\Users\\\\Dawid\\\\WebstormProjects\\\\FlowCars\\\\debug\\\\1781733405315-https-www-otomoto-pl-osobowe-oferta-chrysler-pacifica-ID6I7kuj-html.html\" -Raw; $idx = $html.IndexOf\\('\"__NEXT_DATA__\"'\\); Write-Host \"NEXT_DATA: $idx\"; $idx2 = $html.IndexOf\\('application/ld+json'\\); Write-Host \"JSON-LD: $idx2\"; $m = [regex]::Match\\($html, 'og:title[^>]+content=\"\\([^\"]+\\)\"'\\); Write-Host \"og:title: $\\($m.Groups[1].Value\\)\")"
+    ]
+  }
+}

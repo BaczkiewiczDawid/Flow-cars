@@ -1,0 +1,325 @@
+'use client';
+
+import Link from 'next/link';
+import Image from 'next/image';
+import styled from 'styled-components';
+import { Gauge, Fuel, MapPin, Calendar, Clock } from 'lucide-react';
+import { SourceBadge, DiscountBadge } from './Badges';
+
+export interface CarCardData {
+  id: number;
+  source: 'olx' | 'otomoto';
+  title: string;
+  brand: string;
+  model: string;
+  generation: string | null;
+  productionYear: number;
+  engineCapacity: number | null;
+  enginePower: number | null;
+  fuelType: string | null;
+  gearbox: string | null;
+  mileage: number;
+  price: number;
+  estimatedMarketPrice: number | null;
+  priceDeviationPercent: number | null;
+  isUnderpriced: boolean;
+  mainPhoto: string | null;
+  city: string | null;
+  listedAt: Date | null;
+}
+
+const Card = styled.div`
+  background: ${({ theme }) => theme.colors.surface};
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: ${({ theme }) => theme.radius.lg};
+  overflow: hidden;
+  box-shadow: ${({ theme }) => theme.shadow.card};
+  transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+
+  &:hover {
+    transform: translateY(-3px);
+    box-shadow: ${({ theme }) => theme.shadow.raised};
+    border-color: ${({ theme }) => theme.colors.borderStrong};
+  }
+`;
+
+const ImageWrap = styled.div`
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  background: ${({ theme }) => theme.colors.bgSoft};
+`;
+
+const BadgeRow = styled.div`
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  right: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  z-index: 2;
+`;
+
+const Body = styled.div`
+  padding: 14px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+`;
+
+const TitleRow = styled.div`
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+`;
+
+const Title = styled.h3`
+  font-size: 15.5px;
+  line-height: 1.3;
+  flex: 1;
+  min-width: 0;
+`;
+
+const Price = styled.span`
+  font-size: 15.5px;
+  font-weight: 700;
+  color: ${({ theme }) => theme.colors.ink};
+  white-space: nowrap;
+`;
+
+const Generation = styled.span`
+  color: ${({ theme }) => theme.colors.inkSoft};
+  font-weight: 500;
+`;
+
+const SpecsRow = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 12.5px;
+  color: ${({ theme }) => theme.colors.inkSoft};
+`;
+
+const SpecItem = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+
+  svg {
+    color: ${({ theme }) => theme.colors.inkFaint};
+    flex-shrink: 0;
+  }
+`;
+
+const Divider = styled.div`
+  height: 1px;
+  background: ${({ theme }) => theme.colors.border};
+  margin: 2px 0 4px;
+`;
+
+const MarketRow = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12.5px;
+`;
+
+const MarketLabel = styled.span`
+  color: ${({ theme }) => theme.colors.inkSoft};
+`;
+
+const MarketValue = styled.span`
+  font-weight: 600;
+  color: ${({ theme }) => theme.colors.accentStrong};
+  font-family: ${({ theme }) => theme.font.mono};
+`;
+
+const ProfitHint = styled.div`
+  font-size: 12px;
+  color: ${({ theme }) => theme.colors.accentStrong};
+  font-weight: 600;
+`;
+
+const NoMarket = styled.p`
+  font-size: 12px;
+  color: ${({ theme }) => theme.colors.inkFaint};
+  margin: 0;
+`;
+
+const MarketSection = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  margin: -4px -6px;
+  border-radius: ${({ theme }) => theme.radius.md};
+  cursor: pointer;
+  transition: background 120ms ease;
+
+  &:hover {
+    background: ${({ theme }) => theme.colors.bgSoft};
+  }
+`;
+
+function slugify(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/ą/g, 'a').replace(/ć/g, 'c').replace(/ę/g, 'e')
+    .replace(/ł/g, 'l').replace(/ń/g, 'n').replace(/ó/g, 'o')
+    .replace(/ś/g, 's').replace(/ź/g, 'z').replace(/ż/g, 'z')
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9-]/g, '');
+}
+
+// Mapowanie wartości z bazy (PL) → klucz URL Otomoto (EN)
+const FUEL_TO_OTOMOTO: Record<string, string> = {
+  diesel: 'diesel',
+  benzyna: 'petrol',
+  hybryda: 'hybrid',
+  LPG: 'lpg',
+  elektryczny: 'electric',
+};
+
+function buildOtomotoUrl(
+  brand: string,
+  model: string,
+  year: number,
+  mileage: number,
+  engineCapacity: number | null,
+  enginePower: number | null,
+  fuelType: string | null,
+): string {
+  const p = new URLSearchParams();
+  p.set('search[order]', 'created_at:desc');
+  if (year > 0) {
+    p.set('search[filter_float_year:from]', String(year - 1));
+    p.set('search[filter_float_year:to]', String(year + 1));
+  }
+  p.set('search[filter_float_mileage:to]', String(mileage + 50000));
+  if (mileage > 50000) p.set('search[filter_float_mileage:from]', String(mileage - 50000));
+  if (engineCapacity) {
+    p.set('search[filter_float_engine_capacity:from]', String(engineCapacity - 200));
+    p.set('search[filter_float_engine_capacity:to]', String(engineCapacity + 200));
+  }
+  if (enginePower) {
+    p.set('search[filter_float_engine_power:from]', String(enginePower - 20));
+    p.set('search[filter_float_engine_power:to]', String(enginePower + 20));
+  }
+  const fuelParam = fuelType ? FUEL_TO_OTOMOTO[fuelType] : undefined;
+  if (fuelParam) p.set('search[filter_enum_fuel_type][0]', fuelParam);
+  return `https://www.otomoto.pl/osobowe/${slugify(brand)}/${slugify(model)}/?${p.toString()}`;
+}
+
+function daysAgoLabel(date: Date | null): string | null {
+  if (!date) return null;
+  const days = Math.floor((Date.now() - date.getTime()) / 86_400_000);
+  if (days === 0) return 'Dzisiaj';
+  if (days === 1) return 'Wczoraj';
+  return `${days} dni temu`;
+}
+
+function engineLabel(capacity: number | null, power: number | null, fuel: string | null) {
+  const parts: string[] = [];
+  if (capacity) parts.push(`${(capacity / 1000).toFixed(1)}L`);
+  if (power) parts.push(`${power} KM`);
+  if (fuel) parts.push(fuel);
+  return parts.join(' · ') || '—';
+}
+
+export function CarCard({ car }: { car: CarCardData }) {
+  const profit =
+    car.estimatedMarketPrice != null ? car.estimatedMarketPrice - car.price : null;
+
+  return (
+    <Link href={`/cars/${car.id}`}>
+      <Card>
+        <ImageWrap>
+          <BadgeRow>
+            <SourceBadge $source={car.source}>{car.source}</SourceBadge>
+            {car.isUnderpriced && car.priceDeviationPercent != null && (
+              <DiscountBadge percent={car.priceDeviationPercent} />
+            )}
+          </BadgeRow>
+          {car.mainPhoto && (
+            <Image
+              src={car.mainPhoto}
+              alt={car.title}
+              fill
+              sizes="(max-width: 880px) 100vw, (max-width: 1280px) 50vw, 33vw"
+              style={{ objectFit: 'cover' }}
+            />
+          )}
+        </ImageWrap>
+
+        <Body>
+          <TitleRow>
+            <Title>
+              {car.brand} {car.model}{' '}
+              {car.generation && <Generation>{car.generation}</Generation>}
+            </Title>
+            <Price>{car.price.toLocaleString('pl-PL')} zł</Price>
+          </TitleRow>
+
+          <SpecsRow>
+            <SpecItem>
+              <Calendar size={14} />
+              {car.productionYear}
+            </SpecItem>
+            <SpecItem>
+              <Fuel size={14} />
+              {engineLabel(car.engineCapacity, car.enginePower, car.fuelType)}
+            </SpecItem>
+            <SpecItem>
+              <Gauge size={14} />
+              {car.mileage.toLocaleString('pl-PL')} km
+            </SpecItem>
+            {car.city && (
+              <SpecItem>
+                <MapPin size={14} />
+                {car.city}
+              </SpecItem>
+            )}
+            {daysAgoLabel(car.listedAt) && (
+              <SpecItem>
+                <Clock size={14} />
+                {daysAgoLabel(car.listedAt)}
+              </SpecItem>
+            )}
+          </SpecsRow>
+
+          <Divider />
+
+          {car.estimatedMarketPrice != null ? (
+            <MarketSection
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                window.open(
+                  buildOtomotoUrl(car.brand, car.model, car.productionYear, car.mileage, car.engineCapacity, car.enginePower, car.fuelType),
+                  '_blank',
+                  'noopener,noreferrer'
+                );
+              }}
+            >
+              <MarketRow>
+                <MarketLabel>Cena rynkowa</MarketLabel>
+                <MarketValue>{car.estimatedMarketPrice.toLocaleString('pl-PL')} zł</MarketValue>
+              </MarketRow>
+              {profit != null && profit > 0 && (
+                <ProfitHint>+{profit.toLocaleString('pl-PL')} zł potencjalnego zarobku</ProfitHint>
+              )}
+            </MarketSection>
+          ) : (
+            <NoMarket>Za mało porównywalnych ogłoszeń do wyceny.</NoMarket>
+          )}
+        </Body>
+      </Card>
+    </Link>
+  );
+}

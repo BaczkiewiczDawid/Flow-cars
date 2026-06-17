@@ -1,0 +1,37 @@
+{
+  "name": "lowca-okazji",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Dashboard do wyszukiwania okazji samochodowych na OLX i Otomoto dla autohandlu.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "db:generate": "drizzle-kit generate",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio",
+    "db:seed": "tsx db/seed.ts",
+    "scrape": "tsx scripts/run-scrape.ts",
+    "scrape:debug": "tsx scripts/debug-fetch.ts"
+  },
+  "dependencies": {
+    "dotenv": "16.4.7",
+    "next": "16.2.9",
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
+    "styled-components": "6.4.2",
+    "drizzle-orm": "0.45.2",
+    "@libsql/client": "0.17.4",
+    "cheerio": "1.2.0",
+    "lucide-react": "0.469.0"
+  },
+  "devDependencies": {
+    "typescript": "5.7.3",
+    "@types/node": "22.10.7",
+    "@types/react": "19.2.17",
+    "@types/react-dom": "19.2.3",
+    "drizzle-kit": "0.31.10",
+    "tsx": "4.22.4"
+  }
+}
