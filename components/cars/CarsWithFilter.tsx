@@ -5,10 +5,62 @@ import styled from 'styled-components';
 import { CarGrid } from './CarGrid';
 import type { CarCardData } from './CarCard';
 
-const FilterBar = styled.div`
+type SortKey = 'newest' | 'cheapest' | 'deal';
+
+const SORT_OPTIONS: { key: SortKey; label: string }[] = [
+  { key: 'newest',   label: 'Najnowsze' },
+  { key: 'cheapest', label: 'Najtańsze' },
+  { key: 'deal',     label: 'Największa okazja' },
+];
+
+function sortCars(cars: CarCardData[], key: SortKey): CarCardData[] {
+  const copy = [...cars];
+  if (key === 'newest') {
+    return copy.sort((a, b) => {
+      const da = (a.listedAt ?? new Date(0)).getTime();
+      const db = (b.listedAt ?? new Date(0)).getTime();
+      return db - da;
+    });
+  }
+  if (key === 'cheapest') return copy.sort((a, b) => a.price - b.price);
+  // deal: most negative priceDeviationPercent first; null pushed to end
+  return copy.sort((a, b) => {
+    if (a.priceDeviationPercent === null) return 1;
+    if (b.priceDeviationPercent === null) return -1;
+    return a.priceDeviationPercent - b.priceDeviationPercent;
+  });
+}
+
+// ─── styled ───────────────────────────────────────────────────────────────────
+
+const Bar = styled.div`
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
   margin-bottom: 20px;
+`;
+
+const SortGroup = styled.div`
+  display: flex;
+  gap: 4px;
+  background: ${({ theme }) => theme.colors.bgSoft};
+  border-radius: ${({ theme }) => theme.radius.md};
+  padding: 3px;
+`;
+
+const SortPill = styled.button<{ $active: boolean }>`
+  padding: 6px 13px;
+  border-radius: ${({ theme }) => theme.radius.sm};
+  border: none;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 120ms, color 120ms, box-shadow 120ms;
+  background: ${({ $active, theme }) => ($active ? theme.colors.surface : 'transparent')};
+  color: ${({ $active, theme }) => ($active ? theme.colors.ink : theme.colors.inkSoft)};
+  box-shadow: ${({ $active, theme }) => ($active ? theme.shadow.card : 'none')};
 `;
 
 const Label = styled.label`
@@ -57,15 +109,27 @@ const Count = styled.span`
   color: ${({ theme }) => theme.colors.inkSoft};
 `;
 
+// ─────────────────────────────────────────────────────────────────────────────
+
 export function CarsWithFilter({ cars }: { cars: CarCardData[] }) {
   const [onlyDeals, setOnlyDeals] = useState(false);
+  const [sort, setSort] = useState<SortKey>('newest');
 
   const dealsCount = cars.filter((c) => c.isUnderpriced).length;
-  const displayed = onlyDeals ? cars.filter((c) => c.isUnderpriced) : cars;
+  const filtered = onlyDeals ? cars.filter((c) => c.isUnderpriced) : cars;
+  const displayed = sortCars(filtered, sort);
 
   return (
     <>
-      <FilterBar>
+      <Bar>
+        <SortGroup>
+          {SORT_OPTIONS.map((o) => (
+            <SortPill key={o.key} $active={sort === o.key} onClick={() => setSort(o.key)}>
+              {o.label}
+            </SortPill>
+          ))}
+        </SortGroup>
+
         <Label>
           <HiddenInput
             checked={onlyDeals}
@@ -75,7 +139,7 @@ export function CarsWithFilter({ cars }: { cars: CarCardData[] }) {
           Tylko okazje
           <Count>({dealsCount} z {cars.length})</Count>
         </Label>
-      </FilterBar>
+      </Bar>
       <CarGrid cars={displayed} onlyDeals={onlyDeals} />
     </>
   );

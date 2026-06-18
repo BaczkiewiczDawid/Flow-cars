@@ -2,11 +2,8 @@ import * as cheerio from 'cheerio';
 import { eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { cars, type Car } from '@/db/schema';
-import { politeFetch } from './scrapers/httpClient';
-
-export const UNDERPRICED_THRESHOLD_PERCENT = Number(
-  process.env.UNDERPRICED_THRESHOLD_PERCENT ?? '15'
-);
+import { parallelFetch } from './scrapers/httpClient';
+import { getSettings } from './settings';
 
 function median(values: number[]): number {
   const sorted = [...values].sort((a, b) => a - b);
@@ -37,10 +34,10 @@ const FUEL_CANON: Record<string, string> = {
   diesel: 'diesel',
   benzyna: 'petrol', petrol: 'petrol', gasoline: 'petrol',
   hybryda: 'hybrid', hybrid: 'hybrid',
-  lpg: 'lpg', LPG: 'lpg', 'benzyna+lpg': 'lpg', 'gasoline+lpg': 'lpg', gas: 'lpg',
+  lpg: 'petrol', LPG: 'petrol', 'benzyna+lpg': 'petrol', 'gasoline+lpg': 'petrol', gas: 'petrol',
   elektryczny: 'electric', electric: 'electric',
 };
-function canonicalFuel(raw: string | null | undefined): string | null {
+export function canonicalFuel(raw: string | null | undefined): string | null {
   if (!raw) return null;
   return FUEL_CANON[raw.trim()] ?? FUEL_CANON[raw.trim().toLowerCase()] ?? null;
 }
@@ -50,7 +47,6 @@ interface MarketListing {
   year: number;
   mileage: number;
   engineCapacity: number;
-  enginePower: number;
   fuelType: string | null;
 }
 
@@ -80,7 +76,6 @@ function parseEdges(html: string): MarketListing[] {
         year: pval('year'),
         mileage: pval('mileage'),
         engineCapacity: pval('engine_capacity'),
-        enginePower: pval('engine_power'),
         fuelType: canonicalFuel(pstr('fuel_type')),
       };
     })
@@ -100,7 +95,7 @@ async function fetchOtomotoMarketListings(brand: string, model: string): Promise
       ? `${base}?search[order]=created_at:desc&search[filter_enum_damaged][0]=0`
       : `${base}?search[order]=created_at:desc&search[filter_enum_damaged][0]=0&page=${page}`;
     try {
-      const listings = parseEdges(await politeFetch(url));
+      const listings = parseEdges(await parallelFetch(url));
       if (listings.length === 0) break;
       all.push(...listings);
     } catch { break; }
@@ -109,18 +104,20 @@ async function fetchOtomotoMarketListings(brand: string, model: string): Promise
   return all;
 }
 
-const YEAR_TOL = 1;
-const MILEAGE_TOL = 50_000;
-
 function findComparable(
   listings: MarketListing[],
-  car: { productionYear: number; mileage: number; fuelType: string | null },
-  matchFuel: boolean
+  car: { productionYear: number; mileage: number; fuelType: string | null; yearFrom?: number; yearTo?: number; engineCapacity?: number },
+  matchFuel: boolean,
+  s: { yearTolerance: number; mileageTolerance: number; engineTolerance: number }
 ): MarketListing[] {
   const carFuel = canonicalFuel(car.fuelType);
+  const yearFrom = car.yearFrom ?? (car.productionYear - s.yearTolerance);
+  const yearTo   = car.yearTo   ?? (car.productionYear + s.yearTolerance);
   return listings.filter((c) => {
-    if (Math.abs(c.year - car.productionYear) > YEAR_TOL) return false;
-    if (Math.abs(c.mileage - car.mileage) > MILEAGE_TOL) return false;
+    if (c.year < yearFrom || c.year > yearTo) return false;
+    if (Math.abs(c.mileage - car.mileage) > s.mileageTolerance) return false;
+    if (s.engineTolerance > 0 && car.engineCapacity && c.engineCapacity > 0 &&
+        Math.abs(c.engineCapacity - car.engineCapacity) > s.engineTolerance) return false;
     if (matchFuel && carFuel && c.fuelType && carFuel !== c.fuelType) return false;
     return true;
   });
@@ -128,12 +125,14 @@ function findComparable(
 
 export function deviationFromMarket(
   price: number,
-  marketPrice: number
+  marketPrice: number,
+  threshold?: number
 ): { priceDeviationPercent: number; isUnderpriced: boolean } {
+  const t = threshold ?? getSettings().underpricedThresholdPercent;
   const priceDeviationPercent = ((price - marketPrice) / marketPrice) * 100;
   return {
     priceDeviationPercent,
-    isUnderpriced: priceDeviationPercent <= -UNDERPRICED_THRESHOLD_PERCENT,
+    isUnderpriced: priceDeviationPercent <= -t,
   };
 }
 
@@ -162,15 +161,35 @@ export async function recalculateAllMarketStats(): Promise<void> {
     groups.get(key)!.push(car);
   }
 
+  // Pobierz dane rynkowe dla wszystkich par równolegle
+  const entries = Array.from(groups.entries());
+  console.log(`[market] Pobieranie danych dla ${entries.length} par marka/model równolegle…`);
+
+  const marketResults = await Promise.allSettled(
+    entries.map(([key]) => {
+      const [brand, model] = key.split('|');
+      return fetchOtomotoMarketListings(brand, model).then((listings) => ({ key, listings }));
+    })
+  );
+
+  const marketMap = new Map<string, MarketListing[]>();
+  for (const result of marketResults) {
+    if (result.status === 'fulfilled') {
+      marketMap.set(result.value.key, result.value.listings);
+    }
+  }
+
+  // Oblicz wyceny i zapisz do DB
+  const s = getSettings();
+
   for (const [key, group] of groups) {
+    const marketListings = marketMap.get(key) ?? [];
     const [brand, model] = key.split('|');
-    console.log(`[market] ${brand} ${model}`);
-    const marketListings = await fetchOtomotoMarketListings(brand, model);
+    console.log(`[market] ${brand} ${model} — próbka: ${marketListings.length}`);
 
     for (const car of group) {
-      // Próba z paliwem, fallback bez paliwa (rok i przebieg zawsze wymagane)
-      let comparable = findComparable(marketListings, car, true);
-      if (comparable.length < 3) comparable = findComparable(marketListings, car, false);
+      let comparable = findComparable(marketListings, car, s.requireFuelMatch, s);
+      if (comparable.length < 3) comparable = findComparable(marketListings, car, false, s);
 
       let estimatedMarketPrice: number | null = null;
       let priceDeviationPercent: number | null = null;
@@ -179,7 +198,7 @@ export async function recalculateAllMarketStats(): Promise<void> {
       if (comparable.length > 0) {
         const prices = trimOutliers(comparable.map((c) => c.price));
         estimatedMarketPrice = Math.round(median(prices));
-        const dev = deviationFromMarket(car.price, estimatedMarketPrice);
+        const dev = deviationFromMarket(car.price, estimatedMarketPrice, s.underpricedThresholdPercent);
         priceDeviationPercent = Math.round(dev.priceDeviationPercent * 10) / 10;
         isUnderpriced = dev.isUnderpriced;
       }
@@ -196,6 +215,21 @@ export async function recalculateAllMarketStats(): Promise<void> {
         .where(eq(cars.id, car.id));
     }
   }
+}
+
+export async function estimateMarketPrice(
+  brand: string,
+  model: string,
+  car: { productionYear: number; mileage: number; fuelType?: string | null; yearFrom?: number; yearTo?: number; engineCapacity?: number }
+): Promise<{ estimatedMarketPrice: number | null; sampleSize: number }> {
+  const s = getSettings();
+  const listings = await fetchOtomotoMarketListings(brand, model);
+  const carParams = { ...car, fuelType: car.fuelType ?? null };
+  let comparable = findComparable(listings, carParams, s.requireFuelMatch, s);
+  if (comparable.length < 3) comparable = findComparable(listings, carParams, false, s);
+  if (comparable.length === 0) return { estimatedMarketPrice: null, sampleSize: 0 };
+  const prices = trimOutliers(comparable.map((c) => c.price));
+  return { estimatedMarketPrice: Math.round(median(prices)), sampleSize: comparable.length };
 }
 
 export type { Car };

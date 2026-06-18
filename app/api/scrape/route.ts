@@ -2,9 +2,8 @@ import { db } from '@/db';
 import { cars } from '@/db/schema';
 import { runScrapeAndIngest } from '@/lib/ingestListings';
 
-export async function POST(req: Request) {
+export async function POST() {
   const encoder = new TextEncoder();
-  const { priceMax } = await req.json().catch(() => ({}));
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -14,7 +13,7 @@ export async function POST(req: Request) {
       try {
         await db.delete(cars);
         await runScrapeAndIngest(
-          priceMax ? { priceMax: Number(priceMax) } : {},
+          {},
           (done, total) => send({ done, total })
         );
         send({ finished: true });

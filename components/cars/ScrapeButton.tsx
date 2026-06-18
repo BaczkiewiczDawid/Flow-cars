@@ -45,29 +45,11 @@ const Progress = styled.p`
   font-variant-numeric: tabular-nums;
 `;
 
-const Select = styled.select`
-  padding: 8px 10px;
-  border-radius: ${({ theme }) => theme.radius.md};
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  background: ${({ theme }) => theme.colors.surface};
-  color: ${({ theme }) => theme.colors.ink};
-  font-size: 13.5px;
-  font-weight: 500;
-  cursor: pointer;
-`;
-
-const Row = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 12px;
-`;
-
 export function ScrapeButton() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [priceMax, setPriceMax] = useState(10000);
 
   async function handleClick() {
     setLoading(true);
@@ -75,11 +57,7 @@ export function ScrapeButton() {
     setError(null);
 
     try {
-      const res = await fetch('/api/scrape', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ priceMax }),
-      });
+      const res = await fetch('/api/scrape', { method: 'POST' });
       if (!res.body) throw new Error('Brak streamu odpowiedzi.');
 
       const reader = res.body.getReader();
@@ -114,22 +92,10 @@ export function ScrapeButton() {
 
   return (
     <div>
-      <Row>
-        <Select
-          value={priceMax}
-          onChange={(e) => setPriceMax(Number(e.target.value))}
-          disabled={loading}
-        >
-          <option value={5000}>do 5 000 zł</option>
-          <option value={10000}>do 10 000 zł</option>
-          <option value={15000}>do 15 000 zł</option>
-          <option value={20000}>do 20 000 zł</option>
-        </Select>
-        <Btn onClick={handleClick} disabled={loading}>
-          <SpinningIcon size={15} $spinning={loading} />
-          Szukaj nowych ofert
-        </Btn>
-      </Row>
+      <Btn onClick={handleClick} disabled={loading}>
+        <SpinningIcon size={15} $spinning={loading} />
+        Szukaj nowych ofert
+      </Btn>
       {loading && progress && (
         <Progress>
           Wyszukane oferty: {progress.done} / {progress.total}
@@ -140,5 +106,4 @@ export function ScrapeButton() {
       )}
     </div>
   );
-
 }

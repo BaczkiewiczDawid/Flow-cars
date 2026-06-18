@@ -5,6 +5,7 @@ import type { ScrapedListingDraft } from './scrapers/types';
 import { recalculateAllMarketStats } from './marketAnalysis';
 import { searchAll } from './scrapers';
 import type { SearchCriteria } from './scrapers/types';
+import { getSettings } from './settings';
 
 export interface IngestResult {
   totalFound: number;
@@ -100,15 +101,17 @@ export async function runScrapeAndIngest(
   criteria: SearchCriteria = {},
   onProgress?: (done: number, total: number) => void
 ): Promise<IngestResult & { runId: number }> {
+  const { listingsPerPortal, locationCity, locationRadiusKm, priceMin, priceMax } = getSettings();
   const effectiveCriteria: SearchCriteria = {
-    priceMax: 10000,
-    locationCity: 'gliwice',
-    locationRadiusKm: 30,
-    maxListings: 50,
-    maxPages: 3,
+    priceMin: priceMin || undefined,
+    priceMax,
+    locationCity,
+    locationRadiusKm,
+    maxListings: listingsPerPortal,
+    maxPages: Math.ceil(listingsPerPortal / 30) + 1,
     ...criteria,
   };
-  const total = (effectiveCriteria.maxListings ?? 50) * 2; // OLX + Otomoto
+  const total = (effectiveCriteria.maxListings ?? listingsPerPortal) * 2; // OLX + Otomoto
   let done = 0;
   const onListingFetched = onProgress
     ? () => { onProgress(++done, total); }

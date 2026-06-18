@@ -10,6 +10,7 @@ import {
   BarChart3,
   Settings,
   Radar,
+  GitCompareArrows,
 } from 'lucide-react';
 
 const Aside = styled.aside`
@@ -216,13 +217,14 @@ interface NavConfigItem {
 
 const mainNav: NavConfigItem[] = [
   { label: 'Dashboard', href: '/', icon: LayoutDashboard },
+  { label: 'Porównaj ofertę', href: '/compare', icon: GitCompareArrows },
+  { label: 'Ustawienia', href: '/settings', icon: Settings },
 ];
 
 const futureNav: NavConfigItem[] = [
   { label: 'Wyszukiwania', href: '/wyszukiwania', icon: SlidersHorizontal, disabled: true },
   { label: 'Ulubione', href: '/ulubione', icon: Heart, disabled: true },
   { label: 'Statystyki', href: '/statystyki', icon: BarChart3, disabled: true },
-  { label: 'Ustawienia', href: '/ustawienia', icon: Settings, disabled: true },
 ];
 
 export function Sidebar({ scraperMode }: { scraperMode: 'mock' | 'live' }) {

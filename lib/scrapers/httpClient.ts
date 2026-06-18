@@ -1,15 +1,30 @@
-const DELAY_MS = Number(process.env.SCRAPER_DELAY_MS ?? '1500');
+const DELAY_MS = Number(process.env.SCRAPER_DELAY_MS ?? '800');
 
 let lastRequestAt = 0;
+
+const BROWSER_HEADERS = {
+  'User-Agent':
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
+  'Accept-Language': 'pl-PL,pl;q=0.9,en-US;q=0.8,en;q=0.7',
+  Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+};
+
+/**
+ * Fetch bez globalnego delay — do użytku w analizie rynkowej gdzie wiele par
+ * marka/model pobieranych jest równolegle. Każde wywołanie odpowiada za własne
+ * throttling (nie blokuje globalnej kolejki scraperów).
+ */
+export async function parallelFetch(url: string): Promise<string> {
+  const response = await fetch(url, { headers: BROWSER_HEADERS });
+  if (!response.ok) throw new Error(`HTTP ${response.status}: ${url}`);
+  return response.text();
+}
 
 /**
  * "Uprzejmy" fetch do trybu live scrapera:
  * - ustawia nagłówki podobne do zwykłej przeglądarki,
  * - wymusza minimalny odstęp między żądaniami (SCRAPER_DELAY_MS),
  *   żeby nie zarzucać serwisu requestami i zmniejszyć ryzyko zablokowania IP.
- *
- * To NIE jest sposób na obejście blokad czy zabezpieczeń serwisu -
- * to zwykłe, etyczne ograniczenie częstotliwości requestów.
  */
 export async function politeFetch(url: string): Promise<string> {
   const now = Date.now();
@@ -19,14 +34,7 @@ export async function politeFetch(url: string): Promise<string> {
   }
   lastRequestAt = Date.now();
 
-  const response = await fetch(url, {
-    headers: {
-      'User-Agent':
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
-      'Accept-Language': 'pl-PL,pl;q=0.9,en-US;q=0.8,en;q=0.7',
-      Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-    },
-  });
+  const response = await fetch(url, { headers: BROWSER_HEADERS });
 
   if (!response.ok) {
     const hint =

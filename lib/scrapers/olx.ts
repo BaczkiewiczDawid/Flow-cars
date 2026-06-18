@@ -8,11 +8,41 @@ const MAX_LISTINGS_DEFAULT = Number(process.env.SCRAPER_MAX_LISTINGS ?? '8');
 
 const OLX_API = 'https://www.olx.pl/api/v1/offers/';
 const OLX_CAT_CARS = 84;
-// Lokalizacja domyślna: Gliwice, woj. Śląskie
-const OLX_REGION_SLASKIE = 6;
-const OLX_CITY_GLIWICE = 6091;
 
-function buildApiUrl(criteria: SearchCriteria, offset: number): string {
+function slugifyCity(city: string): string {
+  return city.trim().toLowerCase()
+    .replace(/ą/g, 'a').replace(/ć/g, 'c').replace(/ę/g, 'e').replace(/ł/g, 'l')
+    .replace(/ń/g, 'n').replace(/ó/g, 'o').replace(/ś/g, 's').replace(/ź/g, 'z')
+    .replace(/ż/g, 'z').replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+}
+
+interface OlxLocation { cityId: number; regionId: number }
+const locationCache = new Map<string, OlxLocation | null>();
+
+async function resolveOlxLocation(city: string): Promise<OlxLocation | null> {
+  const slug = slugifyCity(city);
+  if (locationCache.has(slug)) return locationCache.get(slug)!;
+
+  try {
+    const html = await fetch(`https://www.olx.pl/motoryzacja/samochody/${slug}/`, {
+      headers: { 'User-Agent': 'Mozilla/5.0', 'Accept-Language': 'pl-PL' },
+    }).then((r) => r.text());
+
+    const cityId = html.match(/city_id=(\d+)/)?.[1];
+    const regionId = html.match(/region_id=(\d+)/)?.[1];
+    const result = cityId && regionId
+      ? { cityId: Number(cityId), regionId: Number(regionId) }
+      : null;
+    locationCache.set(slug, result);
+    if (!result) console.warn(`[olx] Nie udało się ustalić city_id dla: ${city} (slug: ${slug})`);
+    return result;
+  } catch {
+    locationCache.set(slug, null);
+    return null;
+  }
+}
+
+async function buildApiUrl(criteria: SearchCriteria, offset: number): Promise<string> {
   const parts = [
     `offset=${offset}`,
     'limit=50',
@@ -20,13 +50,16 @@ function buildApiUrl(criteria: SearchCriteria, offset: number): string {
     'sort_by=created_at:desc',
     'filter_enum_condition[0]=notdamaged',
   ];
+  if (criteria.priceMin) parts.push(`filter_float_price:from=${criteria.priceMin}`);
   if (criteria.priceMax) parts.push(`filter_float_price:to=${criteria.priceMax}`);
 
-  const city = criteria.locationCity?.toLowerCase();
-  if (city === 'gliwice' || !city) {
-    parts.push(`region_id=${OLX_REGION_SLASKIE}`, `city_id=${OLX_CITY_GLIWICE}`);
+  if (criteria.locationCity) {
+    const loc = await resolveOlxLocation(criteria.locationCity);
+    if (loc) {
+      parts.push(`region_id=${loc.regionId}`, `city_id=${loc.cityId}`);
+      if (criteria.locationRadiusKm) parts.push(`distance=${criteria.locationRadiusKm}`);
+    }
   }
-  if (criteria.locationRadiusKm) parts.push(`distance=${criteria.locationRadiusKm}`);
 
   return `${OLX_API}?${parts.join('&')}`;
 }
@@ -76,6 +109,7 @@ function mapListing(item: any): ScrapedListingDraft {
     equipment: [],
     photos,
     mainPhoto: photos[0],
+    sellerId: item.user?.id ? String(item.user.id as number) : undefined,
     sellerName: (item.user?.name as string | undefined),
     sellerPhone: undefined,
     sellerType: (item.business as boolean) ? 'firma' : 'prywatny',
@@ -92,7 +126,7 @@ async function searchLive(
   let offset = 0;
 
   while (results.length < maxListings) {
-    const url = buildApiUrl(criteria, offset);
+    const url = await buildApiUrl(criteria, offset);
     let json: any;
     try {
       json = JSON.parse(await politeFetch(url));

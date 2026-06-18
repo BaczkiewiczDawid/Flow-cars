@@ -26,6 +26,7 @@ export interface ScrapedListingDraft {
   equipment: string[];
   photos: string[];
   mainPhoto?: string;
+  sellerId?: string;
   sellerName?: string;
   sellerPhone?: string;
   sellerType?: 'prywatny' | 'firma';
@@ -39,12 +40,14 @@ export interface SearchCriteria {
   model?: string;
   /** Slug kategorii w URL, jeśli różni się od slugifikowanego `model` (np. BMW "320" -> "seria-3"). */
   urlSlug?: string;
+  priceMin?: number;
   priceMax?: number;
   yearMin?: number;
   /** Miasto jako slug w URL (np. "gliwice"). Puste = cała Polska. */
   locationCity?: string;
   /** Promień wyszukiwania wokół miasta w km (np. 30). */
   locationRadiusKm?: number;
+  yearMax?: number;
   /** Maksymalna liczba stron wyników do przejrzenia (tryb "live"). */
   maxPages?: number;
   /** Maksymalna liczba ogłoszeń, dla których pobieramy pełne szczegóły (tryb "live"). */
