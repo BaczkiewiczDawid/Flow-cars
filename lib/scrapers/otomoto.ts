@@ -5,6 +5,7 @@ import { politeFetch } from './httpClient';
 import { categorySearchUrl } from './urls';
 import { normalizeFuelType, normalizeGearbox } from './parseHelpers';
 import { getScraperMode } from './mode';
+import { getSettings } from '../settings';
 
 const MAX_LISTINGS_DEFAULT = Number(process.env.SCRAPER_MAX_LISTINGS ?? '8');
 
@@ -87,10 +88,13 @@ async function searchLive(
   onListingFetched?: () => void
 ): Promise<ScrapedListingDraft[]> {
   const maxPages = criteria.maxPages ?? 2;
-  const maxListings = criteria.maxListings ?? MAX_LISTINGS_DEFAULT;
-  const results: ScrapedListingDraft[] = [];
+  const target = criteria.maxListings ?? MAX_LISTINGS_DEFAULT;
+  const dealerThreshold = criteria.dealerListingThreshold ?? getSettings().dealerListingThreshold;
 
-  for (let page = 1; page <= maxPages && results.length < maxListings; page++) {
+  const sellerCounts = new Map<string, number>();
+  const all: ScrapedListingDraft[] = [];
+
+  for (let page = 1; page <= maxPages; page++) {
     let html: string;
     try {
       html = await politeFetch(buildSearchUrl(criteria, page));
@@ -113,21 +117,38 @@ async function searchLive(
     } catch { break; }
 
     if (edges.length === 0) {
-      console.warn(`[otomoto scraper] Brak ogłoszeń na stronie ${page}. URL: ${buildSearchUrl(criteria, page)}`);
+      console.warn(`[otomoto scraper] Brak ogłoszeń na stronie ${page}.`);
       break;
     }
 
     for (const edge of edges) {
-      if (results.length >= maxListings) break;
       const draft = mapEdge(edge);
-      if (draft) {
-        results.push(draft);
-        onListingFetched?.();
-      }
+      if (!draft) continue;
+      all.push(draft);
+      const sid = draft.sellerId ?? draft.sellerName;
+      if (sid) sellerCounts.set(sid, (sellerCounts.get(sid) ?? 0) + 1);
     }
+
+    const filteredCount = all.filter((l) => {
+      if (l.sellerType === 'firma') return false;
+      const sid = l.sellerId ?? l.sellerName;
+      return !sid || (sellerCounts.get(sid) ?? 0) < dealerThreshold;
+    }).length;
+
+    if (filteredCount >= target) break;
   }
 
-  return results;
+  const filtered: ScrapedListingDraft[] = [];
+  for (const l of all) {
+    if (filtered.length >= target) break;
+    if (l.sellerType === 'firma') continue;
+    const sid = l.sellerId ?? l.sellerName;
+    if (sid && (sellerCounts.get(sid) ?? 0) >= dealerThreshold) continue;
+    filtered.push(l);
+    onListingFetched?.();
+  }
+
+  return filtered;
 }
 
 async function searchMock(criteria: SearchCriteria): Promise<ScrapedListingDraft[]> {

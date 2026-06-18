@@ -6,6 +6,8 @@ import { DashboardHeader } from '@/components/dashboard/DashboardHeader';
 import { StatsBar } from '@/components/dashboard/StatsBar';
 import { CarsWithFilter } from '@/components/cars/CarsWithFilter';
 import type { CarCardData } from '@/components/cars/CarCard';
+import { buildMarketListingUrl } from '@/lib/marketAnalysis';
+import { getSettings } from '@/lib/settings';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,11 +34,12 @@ async function getDashboardData() {
         underpricedCars.length
       : null;
 
-  return { allCars, underpricedCount: underpricedCars.length, lastRun, avgDiscountPercent };
+  const settings = getSettings();
+  return { allCars, underpricedCount: underpricedCars.length, lastRun, avgDiscountPercent, settings };
 }
 
 export default async function DashboardPage() {
-  const { allCars, underpricedCount, lastRun, avgDiscountPercent } =
+  const { allCars, underpricedCount, lastRun, avgDiscountPercent, settings } =
     await getDashboardData();
 
   const cardsData: CarCardData[] = allCars.map((car) => ({
@@ -59,6 +62,7 @@ export default async function DashboardPage() {
     mainPhoto: car.mainPhoto,
     city: car.city,
     listedAt: car.listedAt,
+    marketListingUrl: buildMarketListingUrl(car.brand, car.model, car, settings),
   }));
 
   return (

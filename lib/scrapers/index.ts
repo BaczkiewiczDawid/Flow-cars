@@ -10,34 +10,24 @@ export async function searchAll(
   criteria: SearchCriteria = {},
   onListingFetched?: () => void
 ): Promise<ScrapedListingDraft[]> {
+  const { dealerListingThreshold } = getSettings();
+  const enriched: SearchCriteria = { dealerListingThreshold, ...criteria };
+
   const results = await Promise.all(
     ALL_SCRAPERS.map((scraper) =>
-      scraper.search(criteria, onListingFetched).catch((err) => {
+      scraper.search(enriched, onListingFetched).catch((err) => {
         console.error(`[scraper:${scraper.source}] błąd wyszukiwania:`, err);
         return [] as ScrapedListingDraft[];
       })
     )
   );
-  const flat = results.flat();
 
-  const { dealerListingThreshold } = getSettings();
-
-  const sellerListingCount = new Map<string, number>();
-  for (const l of flat) {
-    const sid = l.sellerId ?? l.sellerName;
-    if (sid) sellerListingCount.set(sid, (sellerListingCount.get(sid) ?? 0) + 1);
-  }
-
+  // Scraperzy już usunęli handlarzy — tu tylko deduplikacja cross-portal
   const seen = new Set<string>();
-  return flat.filter((l) => {
-    const dedupeKey = `${l.price}|${l.productionYear}|${l.mileage}|${(l.city ?? '').toLowerCase()}`;
-    if (seen.has(dedupeKey)) return false;
-    seen.add(dedupeKey);
-
-    if (l.sellerType === 'firma') return false;
-    const sid = l.sellerId ?? l.sellerName;
-    if (sid && (sellerListingCount.get(sid) ?? 0) >= dealerListingThreshold) return false;
-
+  return results.flat().filter((l) => {
+    const key = `${l.price}|${l.productionYear}|${l.mileage}|${(l.city ?? '').toLowerCase()}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
     return true;
   });
 }

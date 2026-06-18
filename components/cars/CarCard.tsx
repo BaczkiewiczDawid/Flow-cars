@@ -26,6 +26,7 @@ export interface CarCardData {
   mainPhoto: string | null;
   city: string | null;
   listedAt: Date | null;
+  marketListingUrl: string;
 }
 
 const Card = styled.div`
@@ -167,54 +168,6 @@ const MarketSection = styled.div`
   }
 `;
 
-function slugify(s: string): string {
-  return s
-    .toLowerCase()
-    .replace(/ą/g, 'a').replace(/ć/g, 'c').replace(/ę/g, 'e')
-    .replace(/ł/g, 'l').replace(/ń/g, 'n').replace(/ó/g, 'o')
-    .replace(/ś/g, 's').replace(/ź/g, 'z').replace(/ż/g, 'z')
-    .replace(/\s+/g, '-')
-    .replace(/[^a-z0-9-]/g, '');
-}
-
-// Mapowanie wartości z bazy (PL) → klucz URL Otomoto (EN)
-const FUEL_TO_OTOMOTO: Record<string, string> = {
-  diesel: 'diesel',
-  benzyna: 'petrol',
-  hybryda: 'hybrid',
-  LPG: 'lpg',
-  elektryczny: 'electric',
-};
-
-function buildOtomotoUrl(
-  brand: string,
-  model: string,
-  year: number,
-  mileage: number,
-  engineCapacity: number | null,
-  enginePower: number | null,
-  fuelType: string | null,
-): string {
-  const p = new URLSearchParams();
-  p.set('search[order]', 'created_at:desc');
-  if (year > 0) {
-    p.set('search[filter_float_year:from]', String(year - 1));
-    p.set('search[filter_float_year:to]', String(year + 1));
-  }
-  p.set('search[filter_float_mileage:to]', String(mileage + 50000));
-  if (mileage > 50000) p.set('search[filter_float_mileage:from]', String(mileage - 50000));
-  if (engineCapacity) {
-    p.set('search[filter_float_engine_capacity:from]', String(engineCapacity - 200));
-    p.set('search[filter_float_engine_capacity:to]', String(engineCapacity + 200));
-  }
-  if (enginePower) {
-    p.set('search[filter_float_engine_power:from]', String(enginePower - 20));
-    p.set('search[filter_float_engine_power:to]', String(enginePower + 20));
-  }
-  const fuelParam = fuelType ? FUEL_TO_OTOMOTO[fuelType] : undefined;
-  if (fuelParam) p.set('search[filter_enum_fuel_type][0]', fuelParam);
-  return `https://www.otomoto.pl/osobowe/${slugify(brand)}/${slugify(model)}/?${p.toString()}`;
-}
 
 function daysAgoLabel(date: Date | null): string | null {
   if (!date) return null;
@@ -300,11 +253,7 @@ export function CarCard({ car }: { car: CarCardData }) {
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                window.open(
-                  buildOtomotoUrl(car.brand, car.model, car.productionYear, car.mileage, car.engineCapacity, car.enginePower, car.fuelType),
-                  '_blank',
-                  'noopener,noreferrer'
-                );
+                window.open(car.marketListingUrl, '_blank', 'noopener,noreferrer');
               }}
             >
               <MarketRow>

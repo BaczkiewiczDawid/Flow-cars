@@ -50,8 +50,10 @@ export interface SearchCriteria {
   yearMax?: number;
   /** Maksymalna liczba stron wyników do przejrzenia (tryb "live"). */
   maxPages?: number;
-  /** Maksymalna liczba ogłoszeń, dla których pobieramy pełne szczegóły (tryb "live"). */
+  /** Maksymalna liczba ogłoszeń po przefiltrowaniu (usunięcie handlarzy/firm). */
   maxListings?: number;
+  /** Próg traktowania sprzedawcy jako handlarza (liczba ogłoszeń tego samego sprzedawcy). */
+  dealerListingThreshold?: number;
 }
 
 export interface CarScraper {

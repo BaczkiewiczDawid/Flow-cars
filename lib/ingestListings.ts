@@ -104,11 +104,11 @@ export async function runScrapeAndIngest(
   const { listingsPerPortal, locationCity, locationRadiusKm, priceMin, priceMax } = getSettings();
   const effectiveCriteria: SearchCriteria = {
     priceMin: priceMin || undefined,
-    priceMax,
+    priceMax: priceMax || undefined,
     locationCity,
     locationRadiusKm,
     maxListings: listingsPerPortal,
-    maxPages: Math.ceil(listingsPerPortal / 30) + 1,
+    maxPages: Math.ceil(listingsPerPortal / 15) + 2,
     ...criteria,
   };
   const total = (effectiveCriteria.maxListings ?? listingsPerPortal) * 2; // OLX + Otomoto

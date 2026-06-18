@@ -82,18 +82,20 @@ function parseEdges(html: string): MarketListing[] {
     .filter((v) => v.price > 0 && v.year > 0);
 }
 
-/**
- * Pobiera ogłoszenia Otomoto dla marki/modelu — do 2 stron, żeby mieć
- * wystarczającą próbkę do stopniowego rozluźniania filtrów.
- */
-async function fetchOtomotoMarketListings(brand: string, model: string): Promise<MarketListing[]> {
+async function fetchOtomotoMarketListings(
+  brand: string,
+  model: string,
+  yearRange?: { from?: number; to?: number },
+): Promise<MarketListing[]> {
   const base = `https://www.otomoto.pl/osobowe/${slugify(brand)}/${slugify(model)}/`;
+  const parts = ['search[order]=created_at:desc', 'search[filter_enum_damaged][0]=0'];
+  if (yearRange?.from) parts.push(`search[filter_float_year:from]=${yearRange.from}`);
+  if (yearRange?.to) parts.push(`search[filter_float_year:to]=${yearRange.to}`);
+  const qs = parts.join('&');
   const all: MarketListing[] = [];
 
   for (let page = 1; page <= 2; page++) {
-    const url = page === 1
-      ? `${base}?search[order]=created_at:desc&search[filter_enum_damaged][0]=0`
-      : `${base}?search[order]=created_at:desc&search[filter_enum_damaged][0]=0&page=${page}`;
+    const url = page === 1 ? `${base}?${qs}` : `${base}?${qs}&page=${page}`;
     try {
       const listings = parseEdges(await parallelFetch(url));
       if (listings.length === 0) break;
@@ -111,8 +113,9 @@ function findComparable(
   s: { yearTolerance: number; mileageTolerance: number; engineTolerance: number }
 ): MarketListing[] {
   const carFuel = canonicalFuel(car.fuelType);
-  const yearFrom = car.yearFrom ?? (car.productionYear - s.yearTolerance);
-  const yearTo   = car.yearTo   ?? (car.productionYear + s.yearTolerance);
+  const hasYear = car.productionYear > 0;
+  const yearFrom = car.yearFrom ?? (hasYear ? car.productionYear - s.yearTolerance : 0);
+  const yearTo   = car.yearTo   ?? (hasYear ? car.productionYear + s.yearTolerance : 9999);
   return listings.filter((c) => {
     if (c.year < yearFrom || c.year > yearTo) return false;
     if (Math.abs(c.mileage - car.mileage) > s.mileageTolerance) return false;
@@ -165,10 +168,16 @@ export async function recalculateAllMarketStats(): Promise<void> {
   const entries = Array.from(groups.entries());
   console.log(`[market] Pobieranie danych dla ${entries.length} par marka/model równolegle…`);
 
+  const s = getSettings();
+
   const marketResults = await Promise.allSettled(
-    entries.map(([key]) => {
+    entries.map(([key, group]) => {
       const [brand, model] = key.split('|');
-      return fetchOtomotoMarketListings(brand, model).then((listings) => ({ key, listings }));
+      const years = group.map((c) => c.productionYear).filter((y) => y > 0);
+      const yearRange = years.length > 0
+        ? { from: Math.min(...years) - s.yearTolerance, to: Math.max(...years) + s.yearTolerance }
+        : undefined;
+      return fetchOtomotoMarketListings(brand, model, yearRange).then((listings) => ({ key, listings }));
     })
   );
 
@@ -178,9 +187,6 @@ export async function recalculateAllMarketStats(): Promise<void> {
       marketMap.set(result.value.key, result.value.listings);
     }
   }
-
-  // Oblicz wyceny i zapisz do DB
-  const s = getSettings();
 
   for (const [key, group] of groups) {
     const marketListings = marketMap.get(key) ?? [];
@@ -223,13 +229,49 @@ export async function estimateMarketPrice(
   car: { productionYear: number; mileage: number; fuelType?: string | null; yearFrom?: number; yearTo?: number; engineCapacity?: number }
 ): Promise<{ estimatedMarketPrice: number | null; sampleSize: number }> {
   const s = getSettings();
-  const listings = await fetchOtomotoMarketListings(brand, model);
+  const hasYear = (car.productionYear ?? 0) > 0;
+  const yearRange = hasYear
+    ? { from: (car.yearFrom ?? car.productionYear! - s.yearTolerance), to: (car.yearTo ?? car.productionYear! + s.yearTolerance) }
+    : undefined;
+  const listings = await fetchOtomotoMarketListings(brand, model, yearRange);
   const carParams = { ...car, fuelType: car.fuelType ?? null };
   let comparable = findComparable(listings, carParams, s.requireFuelMatch, s);
   if (comparable.length < 3) comparable = findComparable(listings, carParams, false, s);
   if (comparable.length === 0) return { estimatedMarketPrice: null, sampleSize: 0 };
   const prices = trimOutliers(comparable.map((c) => c.price));
   return { estimatedMarketPrice: Math.round(median(prices)), sampleSize: comparable.length };
+}
+
+export function buildMarketListingUrl(
+  brand: string,
+  model: string,
+  car: { productionYear: number; mileage: number; fuelType: string | null; engineCapacity?: number | null },
+  s: { yearTolerance: number; mileageTolerance: number; engineTolerance: number; requireFuelMatch: boolean },
+): string {
+  const p = new URLSearchParams();
+  p.set('search[order]', 'created_at:desc');
+  p.set('search[filter_enum_damaged][0]', '0');
+
+  if (car.productionYear > 0) {
+    p.set('search[filter_float_year:from]', String(car.productionYear - s.yearTolerance));
+    p.set('search[filter_float_year:to]', String(car.productionYear + s.yearTolerance));
+  }
+
+  const mileageMin = car.mileage - s.mileageTolerance;
+  if (mileageMin > 0) p.set('search[filter_float_mileage:from]', String(mileageMin));
+  p.set('search[filter_float_mileage:to]', String(car.mileage + s.mileageTolerance));
+
+  if (s.engineTolerance > 0 && car.engineCapacity) {
+    p.set('search[filter_float_engine_capacity:from]', String(car.engineCapacity - s.engineTolerance));
+    p.set('search[filter_float_engine_capacity:to]', String(car.engineCapacity + s.engineTolerance));
+  }
+
+  if (s.requireFuelMatch) {
+    const fuel = canonicalFuel(car.fuelType);
+    if (fuel) p.set('search[filter_enum_fuel_type][0]', fuel);
+  }
+
+  return `https://www.otomoto.pl/osobowe/${slugify(brand)}/${slugify(model)}/?${p.toString()}`;
 }
 
 export type { Car };

@@ -26,7 +26,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   locationCity: 'gliwice',
   locationRadiusKm: 30,
   priceMin: 0,
-  priceMax: 10000,
+  priceMax: 0,
 };
 
 const SETTINGS_PATH = path.join(process.cwd(), '.flowcars-settings.json');

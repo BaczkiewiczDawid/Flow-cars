@@ -3,6 +3,7 @@ import { CAR_CATALOG, generateListingsForEntry } from './catalog';
 import { politeFetch } from './httpClient';
 import { normalizeFuelType, normalizeGearbox } from './parseHelpers';
 import { getScraperMode } from './mode';
+import { getSettings } from '../settings';
 
 const MAX_LISTINGS_DEFAULT = Number(process.env.SCRAPER_MAX_LISTINGS ?? '8');
 
@@ -121,11 +122,14 @@ async function searchLive(
   criteria: SearchCriteria,
   onListingFetched?: () => void
 ): Promise<ScrapedListingDraft[]> {
-  const maxListings = criteria.maxListings ?? MAX_LISTINGS_DEFAULT;
-  const results: ScrapedListingDraft[] = [];
+  const target = criteria.maxListings ?? MAX_LISTINGS_DEFAULT;
+  const dealerThreshold = criteria.dealerListingThreshold ?? getSettings().dealerListingThreshold;
+
+  const sellerCounts = new Map<string, number>();
+  const all: ScrapedListingDraft[] = [];
   let offset = 0;
 
-  while (results.length < maxListings) {
+  while (true) {
     const url = await buildApiUrl(criteria, offset);
     let json: any;
     try {
@@ -139,22 +143,38 @@ async function searchLive(
     if (items.length === 0) break;
 
     for (const item of items) {
-      if (results.length >= maxListings) break;
-      results.push(mapListing(item));
-      onListingFetched?.();
+      const draft = mapListing(item);
+      all.push(draft);
+      const sid = draft.sellerId ?? draft.sellerName;
+      if (sid) sellerCounts.set(sid, (sellerCounts.get(sid) ?? 0) + 1);
     }
 
+    const filteredCount = all.filter((l) => {
+      if (l.sellerType === 'firma') return false;
+      const sid = l.sellerId ?? l.sellerName;
+      return !sid || (sellerCounts.get(sid) ?? 0) < dealerThreshold;
+    }).length;
+
+    if (filteredCount >= target) break;
     if (!json.links?.next || items.length < 50) break;
     offset += 50;
   }
 
-  if (results.length === 0) {
-    console.warn(
-      '[olx scraper] Brak wyników z API OLX. Sprawdź URL:', buildApiUrl(criteria, 0)
-    );
+  if (all.length === 0) {
+    console.warn('[olx scraper] Brak wyników z API OLX.');
   }
 
-  return results;
+  const filtered: ScrapedListingDraft[] = [];
+  for (const l of all) {
+    if (filtered.length >= target) break;
+    if (l.sellerType === 'firma') continue;
+    const sid = l.sellerId ?? l.sellerName;
+    if (sid && (sellerCounts.get(sid) ?? 0) >= dealerThreshold) continue;
+    filtered.push(l);
+    onListingFetched?.();
+  }
+
+  return filtered;
 }
 
 async function searchMock(criteria: SearchCriteria): Promise<ScrapedListingDraft[]> {

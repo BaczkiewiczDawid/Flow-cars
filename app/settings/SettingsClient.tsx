@@ -16,7 +16,7 @@ const DEFAULT: AppSettings = {
   locationCity: 'gliwice',
   locationRadiusKm: 30,
   priceMin: 0,
-  priceMax: 10000,
+  priceMax: 0,
 };
 
 // ─── layout ───────────────────────────────────────────────────────────────────
@@ -425,7 +425,7 @@ export function SettingsClient() {
         <Row>
           <Label>
             <LabelText>Cena maksymalna</LabelText>
-            <LabelHint>Górny limit ceny przy skanowaniu ogłoszeń</LabelHint>
+            <LabelHint>Górny limit ceny przy skanowaniu. Wpisz 0, aby nie ograniczać od góry</LabelHint>
           </Label>
           <InputWrap>
             <NumberInput
