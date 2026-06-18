@@ -3,7 +3,7 @@
 import styled from 'styled-components';
 import { TrendingDown } from 'lucide-react';
 
-export const SourceBadge = styled.span<{ $source: 'olx' | 'otomoto' }>`
+export const SourceBadge = styled.span<{ $source: 'olx' | 'otomoto' | 'autoplac' }>`
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -15,7 +15,9 @@ export const SourceBadge = styled.span<{ $source: 'olx' | 'otomoto' }>`
   text-transform: uppercase;
   color: #fff;
   background: ${({ theme, $source }) =>
-    $source === 'olx' ? theme.colors.olx : theme.colors.otomoto};
+    $source === 'olx' ? theme.colors.olx :
+    $source === 'autoplac' ? theme.colors.autoplac :
+    theme.colors.otomoto};
 `;
 
 const DiscountWrap = styled.span`

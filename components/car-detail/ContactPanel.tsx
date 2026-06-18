@@ -141,7 +141,7 @@ export function ContactPanel({
   voivodeship,
   isMock,
 }: {
-  source: 'olx' | 'otomoto';
+  source: 'olx' | 'otomoto' | 'autoplac';
   url: string;
   price: number;
   estimatedMarketPrice: number | null;

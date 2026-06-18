@@ -18,7 +18,7 @@ export const cars = sqliteTable(
     id: integer('id').primaryKey({ autoIncrement: true }),
 
     // Pochodzenie ogłoszenia
-    source: text('source', { enum: ['olx', 'otomoto'] }).notNull(),
+    source: text('source', { enum: ['olx', 'otomoto', 'autoplac'] }).notNull(),
     externalId: text('external_id').notNull(),
     url: text('url').notNull(),
 

@@ -8,7 +8,7 @@ import { SourceBadge, DiscountBadge } from './Badges';
 
 export interface CarCardData {
   id: number;
-  source: 'olx' | 'otomoto';
+  source: 'olx' | 'otomoto' | 'autoplac';
   title: string;
   brand: string;
   model: string;

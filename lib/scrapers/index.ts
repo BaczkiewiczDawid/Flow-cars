@@ -1,9 +1,10 @@
 import type { CarScraper, ScrapedListingDraft, SearchCriteria } from './types';
 import { olxScraper } from './olx';
 import { otomotoScraper } from './otomoto';
+import { autoplacScraper } from './autoplac';
 import { getSettings } from '../settings';
 
-export const ALL_SCRAPERS: CarScraper[] = [olxScraper, otomotoScraper];
+export const ALL_SCRAPERS: CarScraper[] = [olxScraper, otomotoScraper, autoplacScraper];
 
 /** Szuka na wszystkich serwisach równolegle wg podanych kryteriów (marka/model opcjonalne). */
 export async function searchAll(
@@ -32,5 +33,5 @@ export async function searchAll(
   });
 }
 
-export { olxScraper, otomotoScraper };
+export { olxScraper, otomotoScraper, autoplacScraper };
 export type { CarScraper, ScrapedListingDraft, SearchCriteria };

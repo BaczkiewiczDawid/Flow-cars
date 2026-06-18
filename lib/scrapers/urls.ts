@@ -31,13 +31,13 @@ export function cleanListingUrl(url: string): string {
   }
 }
 export function categorySearchUrl(
-  source: 'olx' | 'otomoto',
+  source: 'olx' | 'otomoto' | 'autoplac',
   brand: string,
   model: string,
   urlSlug?: string
 ): string {
   const segment = `${slug(brand)}/${urlSlug ?? slug(model)}`;
-  return source === 'olx'
-    ? `https://www.olx.pl/motoryzacja/samochody/${segment}/`
-    : `https://www.otomoto.pl/osobowe/${segment}/`;
+  if (source === 'olx') return `https://www.olx.pl/motoryzacja/samochody/${segment}/`;
+  if (source === 'autoplac') return `https://www.autoplac.pl/oferty/samochody-osobowe/${segment}`;
+  return `https://www.otomoto.pl/osobowe/${segment}/`;
 }

@@ -3,7 +3,7 @@
  * (bez id, timestampów i wyliczeń rynkowych - te dodaje warstwa zapisu).
  */
 export interface ScrapedListingDraft {
-  source: 'olx' | 'otomoto';
+  source: 'olx' | 'otomoto' | 'autoplac';
   externalId: string;
   url: string;
   title: string;
@@ -57,6 +57,6 @@ export interface SearchCriteria {
 }
 
 export interface CarScraper {
-  source: 'olx' | 'otomoto';
+  source: 'olx' | 'otomoto' | 'autoplac';
   search(criteria: SearchCriteria, onListingFetched?: () => void): Promise<ScrapedListingDraft[]>;
 }

@@ -28,6 +28,7 @@ export const theme = {
 
     olx: '#0B0C0E',
     otomoto: '#2F8AFF',
+    autoplac: '#E84118',
   },
   font: {
     display: 'var(--font-display), "Space Grotesk", sans-serif',

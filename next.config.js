@@ -12,6 +12,7 @@ const nextConfig = {
       { protocol: 'https', hostname: '**.olcdn.com' },
       { protocol: 'https', hostname: 'placehold.co' },
       { protocol: 'https', hostname: 'images.unsplash.com' },
+      { protocol: 'https', hostname: '**.autoplac.pl' },
     ],
   },
 };

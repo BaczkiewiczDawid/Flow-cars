@@ -5,6 +5,12 @@ import styled from 'styled-components';
 import { CarGrid } from './CarGrid';
 import type { CarCardData } from './CarCard';
 
+const SOURCE_LABELS: Record<string, string> = {
+  olx: 'OLX',
+  otomoto: 'OtoMoto',
+  autoplac: 'Autoplac',
+};
+
 type SortKey = 'newest' | 'cheapest' | 'deal';
 
 const SORT_OPTIONS: { key: SortKey; label: string }[] = [
@@ -109,12 +115,28 @@ const Count = styled.span`
   color: ${({ theme }) => theme.colors.inkSoft};
 `;
 
+const SourcePill = styled.button<{ $active: boolean }>`
+  padding: 6px 13px;
+  border-radius: ${({ theme }) => theme.radius.sm};
+  border: none;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 120ms, color 120ms, box-shadow 120ms;
+  background: ${({ $active, theme }) => ($active ? theme.colors.ink : 'transparent')};
+  color: ${({ $active, theme }) => ($active ? theme.colors.surface : theme.colors.inkSoft)};
+  box-shadow: ${({ $active, theme }) => ($active ? theme.shadow.card : 'none')};
+`;
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function CarsWithFilter({ cars, hideUnfavorited = false }: { cars: CarCardData[]; hideUnfavorited?: boolean }) {
   const [onlyDeals, setOnlyDeals] = useState(false);
   const [sort, setSort] = useState<SortKey>('newest');
   const [favs, setFavs] = useState<Set<number>>(() => new Set(cars.filter((c) => c.isFavorite).map((c) => c.id)));
+
+  const presentSources = [...new Set(cars.map((c) => c.source))];
+  const [sourceFilter, setSourceFilter] = useState<string | null>(null);
 
   async function toggleFavorite(id: number) {
     const next = !favs.has(id);
@@ -124,8 +146,9 @@ export function CarsWithFilter({ cars, hideUnfavorited = false }: { cars: CarCar
 
   const carsWithFav = cars.map((c) => ({ ...c, isFavorite: favs.has(c.id) }));
   const base = hideUnfavorited ? carsWithFav.filter((c) => c.isFavorite) : carsWithFav;
-  const dealsCount = base.filter((c) => c.isUnderpriced).length;
-  const filtered = onlyDeals ? base.filter((c) => c.isUnderpriced) : base;
+  const bySource = sourceFilter ? base.filter((c) => c.source === sourceFilter) : base;
+  const dealsCount = bySource.filter((c) => c.isUnderpriced).length;
+  const filtered = onlyDeals ? bySource.filter((c) => c.isUnderpriced) : bySource;
   const displayed = sortCars(filtered, sort);
 
   return (
@@ -139,15 +162,34 @@ export function CarsWithFilter({ cars, hideUnfavorited = false }: { cars: CarCar
           ))}
         </SortGroup>
 
-        <Label>
-          <HiddenInput
-            checked={onlyDeals}
-            onChange={(e) => setOnlyDeals(e.target.checked)}
-          />
-          <Track $on={onlyDeals} />
-          Tylko okazje
-          <Count>({dealsCount} z {base.length})</Count>
-        </Label>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          {presentSources.length > 1 && (
+            <SortGroup>
+              <SourcePill $active={sourceFilter === null} onClick={() => setSourceFilter(null)}>
+                Wszystkie
+              </SourcePill>
+              {presentSources.map((src) => (
+                <SourcePill
+                  key={src}
+                  $active={sourceFilter === src}
+                  onClick={() => setSourceFilter(src)}
+                >
+                  {SOURCE_LABELS[src] ?? src}
+                </SourcePill>
+              ))}
+            </SortGroup>
+          )}
+
+          <Label style={{ paddingLeft: presentSources.length > 1 ? 8 : 0 }}>
+            <HiddenInput
+              checked={onlyDeals}
+              onChange={(e) => setOnlyDeals(e.target.checked)}
+            />
+            <Track $on={onlyDeals} />
+            Tylko okazje
+            <Count>({dealsCount} z {bySource.length})</Count>
+          </Label>
+        </div>
       </Bar>
       <CarGrid cars={displayed} onlyDeals={onlyDeals} onToggleFavorite={toggleFavorite} />
     </>

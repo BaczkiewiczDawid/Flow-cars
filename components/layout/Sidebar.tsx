@@ -252,6 +252,10 @@ export function Sidebar({ scraperMode }: { scraperMode: 'mock' | 'live' }) {
           <Dot $color="#2F8AFF" />
           Otomoto
         </SourceRow>
+        <SourceRow>
+          <Dot $color="#E84118" />
+          Autoplac
+        </SourceRow>
         <ModeLabel>
           tryb danych: {scraperMode === 'live' ? 'live (skanowanie)' : 'przykładowe'}
         </ModeLabel>

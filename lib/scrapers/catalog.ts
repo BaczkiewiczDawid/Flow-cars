@@ -257,7 +257,7 @@ function buildDescription(entry: CatalogEntry, mileage: number, city: string): s
 }
 
 export interface GenerateOptions {
-  source: 'olx' | 'otomoto';
+  source: 'olx' | 'otomoto' | 'autoplac';
   seedOffset: number;
   count: number;
   /** Lista odchyleń cenowych w % względem marketPrice, np. [-28, -5, 3, 8]. */
