@@ -34,7 +34,7 @@ const EmptyText = styled.p`
   max-width: 380px;
 `;
 
-export function CarGrid({ cars, onlyDeals = false }: { cars: CarCardData[]; onlyDeals?: boolean }) {
+export function CarGrid({ cars, onlyDeals = false, onToggleFavorite }: { cars: CarCardData[]; onlyDeals?: boolean; onToggleFavorite?: (id: number) => void }) {
   if (cars.length === 0) {
     return (
       <Empty>
@@ -54,7 +54,7 @@ export function CarGrid({ cars, onlyDeals = false }: { cars: CarCardData[]; only
   return (
     <Grid>
       {cars.map((car) => (
-        <CarCard key={car.id} car={car} />
+        <CarCard key={car.id} car={car} onToggleFavorite={onToggleFavorite ? () => onToggleFavorite(car.id) : undefined} />
       ))}
     </Grid>
   );

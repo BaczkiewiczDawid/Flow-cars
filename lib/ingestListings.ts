@@ -6,6 +6,7 @@ import { recalculateAllMarketStats } from './marketAnalysis';
 import { searchAll } from './scrapers';
 import type { SearchCriteria } from './scrapers/types';
 import { getSettings } from './settings';
+import { fetchOtomotoPhotos } from './scrapers/otomoto';
 
 export interface IngestResult {
   totalFound: number;
@@ -31,14 +32,22 @@ async function upsertListing(draft: ScrapedListingDraft): Promise<'new' | 'updat
         mileage: draft.mileage,
         description: draft.description,
         equipmentJson: JSON.stringify(draft.equipment),
-        photosJson: JSON.stringify(draft.photos),
-        mainPhoto: draft.mainPhoto,
+        // Nie nadpisujemy zdjęć — zostają te z pierwszego wczytania
         sellerName: draft.sellerName,
         sellerPhone: draft.sellerPhone,
         updatedAt: now,
       })
       .where(eq(cars.id, existing[0].id));
     return 'updated';
+  }
+
+  // Nowe ogłoszenie OtoMoto — pobierz wszystkie zdjęcia ze strony listing
+  if (draft.source === 'otomoto' && draft.url) {
+    const fullPhotos = await fetchOtomotoPhotos(draft.url);
+    if (fullPhotos.length > 0) {
+      draft.photos = fullPhotos;
+      draft.mainPhoto = fullPhotos[0];
+    }
   }
 
   await db.insert(cars).values({

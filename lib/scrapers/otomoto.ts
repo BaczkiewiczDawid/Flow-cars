@@ -168,6 +168,34 @@ async function searchMock(criteria: SearchCriteria): Promise<ScrapedListingDraft
   return criteria.priceMax ? listings.filter((l) => l.price <= criteria.priceMax!) : listings;
 }
 
+export async function fetchOtomotoPhotos(url: string): Promise<string[]> {
+  try {
+    const html = await politeFetch(url);
+    const $ = cheerio.load(html);
+    const nd = $('script#__NEXT_DATA__').html();
+    if (!nd) return [];
+    const data = JSON.parse(nd);
+    const advert = data?.props?.pageProps?.advert;
+    if (!advert) return [];
+
+    // Próbuj kilku możliwych ścieżek do zdjęć
+    const candidates: string[] = [];
+    for (const img of advert.images ?? []) {
+      const u = img?.url ?? img?.x2 ?? img?.x1;
+      if (u) candidates.push(u);
+    }
+    if (candidates.length === 0) {
+      for (const p of advert.photos ?? []) {
+        const u = p?.url?.x2 ?? p?.url?.x1 ?? p?.url ?? p?.x2 ?? p?.x1;
+        if (u) candidates.push(u);
+      }
+    }
+    return candidates;
+  } catch {
+    return [];
+  }
+}
+
 export const otomotoScraper: CarScraper = {
   source: 'otomoto',
   async search(criteria: SearchCriteria, onListingFetched?: () => void) {

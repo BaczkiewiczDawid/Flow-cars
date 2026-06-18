@@ -63,6 +63,7 @@ export default async function DashboardPage() {
     city: car.city,
     listedAt: car.listedAt,
     marketListingUrl: buildMarketListingUrl(car.brand, car.model, car, settings),
+    isFavorite: car.isFavorite,
   }));
 
   return (

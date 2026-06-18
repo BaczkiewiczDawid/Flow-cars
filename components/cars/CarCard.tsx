@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import styled from 'styled-components';
-import { Gauge, Fuel, MapPin, Calendar, Clock } from 'lucide-react';
+import { Gauge, Fuel, MapPin, Calendar, Clock, Heart } from 'lucide-react';
 import { SourceBadge, DiscountBadge } from './Badges';
 
 export interface CarCardData {
@@ -27,6 +27,7 @@ export interface CarCardData {
   city: string | null;
   listedAt: Date | null;
   marketListingUrl: string;
+  isFavorite: boolean;
 }
 
 const Card = styled.div`
@@ -63,6 +64,27 @@ const BadgeRow = styled.div`
   justify-content: space-between;
   align-items: flex-start;
   z-index: 2;
+`;
+
+const RightBadges = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+`;
+
+const HeartBtn = styled.button<{ $active: boolean }>`
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(4px);
+  color: ${({ $active }) => ($active ? '#ef4444' : '#fff')};
+  transition: background 120ms, color 120ms, transform 120ms;
+  &:hover { background: rgba(0, 0, 0, 0.65); transform: scale(1.1); }
 `;
 
 const Body = styled.div`
@@ -185,7 +207,7 @@ function engineLabel(capacity: number | null, power: number | null, fuel: string
   return parts.join(' · ') || '—';
 }
 
-export function CarCard({ car }: { car: CarCardData }) {
+export function CarCard({ car, onToggleFavorite }: { car: CarCardData; onToggleFavorite?: () => void }) {
   const profit =
     car.estimatedMarketPrice != null ? car.estimatedMarketPrice - car.price : null;
 
@@ -195,9 +217,20 @@ export function CarCard({ car }: { car: CarCardData }) {
         <ImageWrap>
           <BadgeRow>
             <SourceBadge $source={car.source}>{car.source}</SourceBadge>
-            {car.isUnderpriced && car.priceDeviationPercent != null && (
-              <DiscountBadge percent={car.priceDeviationPercent} />
-            )}
+            <RightBadges>
+              {car.isUnderpriced && car.priceDeviationPercent != null && (
+                <DiscountBadge percent={car.priceDeviationPercent} />
+              )}
+              {onToggleFavorite && (
+                <HeartBtn
+                  $active={car.isFavorite}
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggleFavorite(); }}
+                  title={car.isFavorite ? 'Usuń z ulubionych' : 'Dodaj do ulubionych'}
+                >
+                  <Heart size={15} fill={car.isFavorite ? 'currentColor' : 'none'} />
+                </HeartBtn>
+              )}
+            </RightBadges>
           </BadgeRow>
           {car.mainPhoto && (
             <Image

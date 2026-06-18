@@ -111,12 +111,21 @@ const Count = styled.span`
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function CarsWithFilter({ cars }: { cars: CarCardData[] }) {
+export function CarsWithFilter({ cars, hideUnfavorited = false }: { cars: CarCardData[]; hideUnfavorited?: boolean }) {
   const [onlyDeals, setOnlyDeals] = useState(false);
   const [sort, setSort] = useState<SortKey>('newest');
+  const [favs, setFavs] = useState<Set<number>>(() => new Set(cars.filter((c) => c.isFavorite).map((c) => c.id)));
 
-  const dealsCount = cars.filter((c) => c.isUnderpriced).length;
-  const filtered = onlyDeals ? cars.filter((c) => c.isUnderpriced) : cars;
+  async function toggleFavorite(id: number) {
+    const next = !favs.has(id);
+    setFavs((s) => { const n = new Set(s); next ? n.add(id) : n.delete(id); return n; });
+    await fetch(`/api/cars/${id}/favorite`, { method: 'POST' });
+  }
+
+  const carsWithFav = cars.map((c) => ({ ...c, isFavorite: favs.has(c.id) }));
+  const base = hideUnfavorited ? carsWithFav.filter((c) => c.isFavorite) : carsWithFav;
+  const dealsCount = base.filter((c) => c.isUnderpriced).length;
+  const filtered = onlyDeals ? base.filter((c) => c.isUnderpriced) : base;
   const displayed = sortCars(filtered, sort);
 
   return (
@@ -137,10 +146,10 @@ export function CarsWithFilter({ cars }: { cars: CarCardData[] }) {
           />
           <Track $on={onlyDeals} />
           Tylko okazje
-          <Count>({dealsCount} z {cars.length})</Count>
+          <Count>({dealsCount} z {base.length})</Count>
         </Label>
       </Bar>
-      <CarGrid cars={displayed} onlyDeals={onlyDeals} />
+      <CarGrid cars={displayed} onlyDeals={onlyDeals} onToggleFavorite={toggleFavorite} />
     </>
   );
 }

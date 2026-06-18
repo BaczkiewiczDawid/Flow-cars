@@ -63,6 +63,8 @@ export const cars = sqliteTable(
     sellerPhone: text('seller_phone'),
     sellerType: text('seller_type', { enum: ['prywatny', 'firma'] }),
 
+    isFavorite: integer('is_favorite', { mode: 'boolean' }).notNull().default(false),
+
     // Status w obrębie aplikacji (przyszły moduł CRM)
     status: text('status', {
       enum: ['nowa', 'do_sprawdzenia', 'kontakt_wyslany', 'odrzucona', 'kupiona'],

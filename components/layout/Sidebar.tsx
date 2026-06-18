@@ -5,7 +5,6 @@ import { usePathname } from 'next/navigation';
 import styled from 'styled-components';
 import {
   LayoutDashboard,
-  SlidersHorizontal,
   Heart,
   BarChart3,
   Settings,
@@ -153,20 +152,6 @@ const NavLabel = styled.span`
   }
 `;
 
-const SoonPill = styled.span`
-  font-size: 9.5px;
-  font-weight: 600;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  padding: 2px 6px;
-  border-radius: ${({ theme }) => theme.radius.pill};
-  background: rgba(255, 255, 255, 0.08);
-  color: ${({ theme }) => theme.colors.sidebarTextMuted};
-
-  @media (max-width: 880px) {
-    display: none;
-  }
-`;
 
 const Spacer = styled.div`
   flex: 1;
@@ -220,14 +205,11 @@ const mainNav: NavConfigItem[] = [
   { label: 'Dashboard', href: '/', icon: LayoutDashboard },
   { label: 'Porównaj ofertę', href: '/compare', icon: GitCompareArrows },
   { label: 'Posiadane', href: '/owned', icon: Car },
+  { label: 'Ulubione', href: '/ulubione', icon: Heart },
   { label: 'Statystyki', href: '/statystyki', icon: BarChart3 },
   { label: 'Ustawienia', href: '/settings', icon: Settings },
 ];
 
-const futureNav: NavConfigItem[] = [
-  { label: 'Wyszukiwania', href: '/wyszukiwania', icon: SlidersHorizontal, disabled: true },
-  { label: 'Ulubione', href: '/ulubione', icon: Heart, disabled: true },
-];
 
 export function Sidebar({ scraperMode }: { scraperMode: 'mock' | 'live' }) {
   const pathname = usePathname();
@@ -256,17 +238,6 @@ export function Sidebar({ scraperMode }: { scraperMode: 'mock' | 'live' }) {
               <NavLabel>{item.label}</NavLabel>
             </NavItem>
           </Link>
-        ))}
-      </NavList>
-
-      <Eyebrow>Wkrótce</Eyebrow>
-      <NavList>
-        {futureNav.map((item) => (
-          <NavItem key={item.href} $disabled title={`${item.label} - w przygotowaniu`}>
-            <item.icon size={18} />
-            <NavLabel>{item.label}</NavLabel>
-            <SoonPill>soon</SoonPill>
-          </NavItem>
         ))}
       </NavList>
 
