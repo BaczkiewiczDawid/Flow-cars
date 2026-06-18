@@ -107,3 +107,23 @@ export const scrapeRuns = sqliteTable('scrape_runs', {
 export type Car = typeof cars.$inferSelect;
 export type NewCar = typeof cars.$inferInsert;
 export type ScrapeRun = typeof scrapeRuns.$inferSelect;
+
+export const ownedCars = sqliteTable('owned_cars', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  brand: text('brand').notNull(),
+  model: text('model').notNull(),
+  year: integer('year').notNull(),
+  mileage: integer('mileage').notNull(),
+  driveType: text('drive_type'),       // FWD / RWD / AWD / 4x4
+  engineCapacity: integer('engine_capacity'), // cm³
+  enginePower: integer('engine_power'),       // KM
+  fuelType: text('fuel_type'),
+  purchasePrice: integer('purchase_price').notNull(),
+  listingPrice: integer('listing_price'),     // null = nie wystawiony
+  notes: text('notes'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
+});
+
+export type OwnedCar = typeof ownedCars.$inferSelect;
+export type NewOwnedCar = typeof ownedCars.$inferInsert;

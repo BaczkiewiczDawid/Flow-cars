@@ -11,6 +11,7 @@ import {
   Settings,
   Radar,
   GitCompareArrows,
+  Car,
 } from 'lucide-react';
 
 const Aside = styled.aside`
@@ -218,6 +219,7 @@ interface NavConfigItem {
 const mainNav: NavConfigItem[] = [
   { label: 'Dashboard', href: '/', icon: LayoutDashboard },
   { label: 'Porównaj ofertę', href: '/compare', icon: GitCompareArrows },
+  { label: 'Posiadane', href: '/owned', icon: Car },
   { label: 'Ustawienia', href: '/settings', icon: Settings },
 ];
 
