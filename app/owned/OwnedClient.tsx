@@ -50,7 +50,7 @@ const Table = styled.table`
   font-size: 13.5px;
 `;
 
-const Th = styled.th`
+const Th = styled.th<{ $sortable?: boolean }>`
   padding: 11px 14px;
   text-align: left;
   font-size: 11.5px;
@@ -60,6 +60,30 @@ const Th = styled.th`
   color: ${({ theme }) => theme.colors.inkFaint};
   border-bottom: 1px solid ${({ theme }) => theme.colors.border};
   white-space: nowrap;
+  cursor: ${({ $sortable }) => ($sortable ? 'pointer' : 'default')};
+  user-select: ${({ $sortable }) => ($sortable ? 'none' : 'auto')};
+  &:hover { color: ${({ $sortable, theme }) => $sortable ? theme.colors.ink : theme.colors.inkFaint}; }
+`;
+
+const FilterBar = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+`;
+
+const FilterPill = styled.button<{ $active: boolean; $color?: string; $bg?: string }>`
+  padding: 5px 12px;
+  border-radius: ${({ theme }) => theme.radius.pill};
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1.5px solid ${({ $active, $color, theme }) => $active && $color ? $color : $active ? theme.colors.accent : theme.colors.border};
+  background: ${({ $active, $bg }) => $active && $bg ? $bg : $active ? 'rgba(23,104,209,0.1)' : 'transparent'};
+  color: ${({ $active, $color, theme }) => $active && $color ? $color : $active ? theme.colors.accent : theme.colors.inkSoft};
+  transition: all 120ms;
+  &:hover { border-color: ${({ $color, theme }) => $color ?? theme.colors.accent}; }
 `;
 
 const Td = styled.td`
@@ -85,9 +109,22 @@ const MarginCell = styled(MonoCell)<{ $positive: boolean | null }>`
   font-weight: 600;
 `;
 
+const stickyRight = ({ theme }: { theme: any }) => `
+  position: sticky;
+  right: 0;
+  background: ${theme.colors.surface};
+  box-shadow: -4px 0 8px rgba(0,0,0,0.06);
+`;
+
 const ActionsCell = styled(Td)`
   text-align: right;
   padding-right: 10px;
+  ${stickyRight}
+  tr:hover & { background: ${({ theme }) => theme.colors.bgSoft}; }
+`;
+
+const ActionsTh = styled(Th)<{ theme?: any }>`
+  ${stickyRight}
 `;
 
 const IconBtn = styled.button<{ $danger?: boolean }>`
@@ -367,12 +404,42 @@ function engineLabel(cap?: number | null, power?: number | null) {
 
 // ─── main ────────────────────────────────────────────────────────────────────
 
+type SortCol = 'brand' | 'year' | 'mileage' | 'purchasePrice' | 'listingPrice' | 'margin';
+
 export function OwnedClient({ initialRows }: { initialRows: OwnedCar[] }) {
   const [rows, setRows] = useState<OwnedCar[]>(initialRows);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<OwnedCar | null>(null);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
+  const [filterStatus, setFilterStatus] = useState<CarStatus | null>(null);
+  const [sort, setSort] = useState<{ col: SortCol; dir: 'asc' | 'desc' }>({ col: 'brand', dir: 'asc' });
+
+  function toggleSort(col: SortCol) {
+    setSort((s) => s.col === col ? { col, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { col, dir: 'asc' });
+  }
+
+  const visible = rows
+    .filter((c) => filterStatus === null || c.status === filterStatus)
+    .sort((a, b) => {
+      const dir = sort.dir === 'asc' ? 1 : -1;
+      if (sort.col === 'brand') return dir * (`${a.brand} ${a.model}`).localeCompare(`${b.brand} ${b.model}`);
+      if (sort.col === 'year') return dir * (a.year - b.year);
+      if (sort.col === 'mileage') return dir * (a.mileage - b.mileage);
+      if (sort.col === 'purchasePrice') return dir * (a.purchasePrice - b.purchasePrice);
+      if (sort.col === 'listingPrice') return dir * ((a.listingPrice ?? -1) - (b.listingPrice ?? -1));
+      if (sort.col === 'margin') {
+        const ma = a.listingPrice != null ? a.listingPrice - a.purchasePrice : -Infinity;
+        const mb = b.listingPrice != null ? b.listingPrice - b.purchasePrice : -Infinity;
+        return dir * (ma - mb);
+      }
+      return 0;
+    });
+
+  function sortInd(col: SortCol) {
+    if (sort.col !== col) return ' ↕';
+    return sort.dir === 'asc' ? ' ↑' : ' ↓';
+  }
 
   function openAdd() {
     setEditing(null);
@@ -437,27 +504,48 @@ export function OwnedClient({ initialRows }: { initialRows: OwnedCar[] }) {
         </AddBtn>
       </Header>
 
+      <FilterBar>
+        <FilterPill $active={filterStatus === null} onClick={() => setFilterStatus(null)}>
+          Wszystkie ({rows.length})
+        </FilterPill>
+        {STATUS_OPTIONS.map((opt) => {
+          const count = rows.filter((c) => c.status === opt.value).length;
+          if (count === 0) return null;
+          return (
+            <FilterPill
+              key={opt.value}
+              $active={filterStatus === opt.value}
+              $color={opt.color}
+              $bg={opt.bg}
+              onClick={() => setFilterStatus(filterStatus === opt.value ? null : opt.value)}
+            >
+              {opt.label} ({count})
+            </FilterPill>
+          );
+        })}
+      </FilterBar>
+
       <TableWrap>
-        {rows.length === 0 ? (
-          <Empty>Brak wpisów. Dodaj swój pierwszy samochód.</Empty>
+        {visible.length === 0 ? (
+          <Empty>{rows.length === 0 ? 'Brak wpisów. Dodaj swój pierwszy samochód.' : 'Brak wyników dla wybranego filtra.'}</Empty>
         ) : (
           <Table>
             <thead>
               <tr>
-                <Th>Marka / Model</Th>
+                <Th $sortable onClick={() => toggleSort('brand')}>Marka / Model{sortInd('brand')}</Th>
                 <Th>Status</Th>
-                <Th>Rocznik</Th>
-                <Th>Przebieg</Th>
+                <Th $sortable onClick={() => toggleSort('year')}>Rocznik{sortInd('year')}</Th>
+                <Th $sortable onClick={() => toggleSort('mileage')}>Przebieg{sortInd('mileage')}</Th>
                 <Th>Napęd</Th>
                 <Th>Silnik</Th>
-                <Th>Cena zakupu</Th>
-                <Th>Cena wystawienia</Th>
-                <Th>Marża</Th>
-                <Th />
+                <Th $sortable onClick={() => toggleSort('purchasePrice')}>Cena zakupu{sortInd('purchasePrice')}</Th>
+                <Th $sortable onClick={() => toggleSort('listingPrice')}>Cena wystawienia{sortInd('listingPrice')}</Th>
+                <Th $sortable onClick={() => toggleSort('margin')}>Marża{sortInd('margin')}</Th>
+                <ActionsTh />
               </tr>
             </thead>
             <tbody>
-              {rows.map((car) => {
+              {visible.map((car) => {
                 const margin =
                   car.listingPrice != null ? car.listingPrice - car.purchasePrice : null;
                 return (
