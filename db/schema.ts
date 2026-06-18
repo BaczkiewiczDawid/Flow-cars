@@ -120,6 +120,9 @@ export const ownedCars = sqliteTable('owned_cars', {
   fuelType: text('fuel_type'),
   purchasePrice: integer('purchase_price').notNull(),
   listingPrice: integer('listing_price'),     // null = nie wystawiony
+  status: text('status', {
+    enum: ['zakupiony', 'w_transporcie', 'na_placu', 'w_przygotowaniu', 'wystawiony', 'sprzedany'],
+  }).notNull().default('zakupiony'),
   notes: text('notes'),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),

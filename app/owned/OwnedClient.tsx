@@ -199,6 +199,28 @@ const Select = styled.select`
   &:focus { border-color: ${({ theme }) => theme.colors.accent}; }
 `;
 
+const StatusGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+`;
+
+const StatusOption = styled.button<{ $active: boolean; $color: string; $bg: string }>`
+  padding: 7px 10px;
+  border-radius: ${({ theme }) => theme.radius.sm};
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 120ms;
+  border: 1.5px solid ${({ $active, $color, theme }) => $active ? $color : theme.colors.border};
+  background: ${({ $active, $bg }) => $active ? $bg : 'transparent'};
+  color: ${({ $active, $color, theme }) => $active ? $color : theme.colors.inkSoft};
+  &:hover {
+    border-color: ${({ $color }) => $color};
+    color: ${({ $color }) => $color};
+  }
+`;
+
 const Textarea = styled.textarea`
   padding: 9px 12px;
   border: 1px solid ${({ theme }) => theme.colors.border};
@@ -248,6 +270,32 @@ const CancelBtn = styled.button`
   &:hover { background: ${({ theme }) => theme.colors.bgSoft}; }
 `;
 
+// ─── status ──────────────────────────────────────────────────────────────────
+
+type CarStatus = 'zakupiony' | 'w_transporcie' | 'na_placu' | 'w_przygotowaniu' | 'wystawiony' | 'sprzedany';
+
+const STATUS_OPTIONS: { value: CarStatus; label: string; color: string; bg: string }[] = [
+  { value: 'zakupiony',       label: 'Zakupiony',          color: '#1768D1', bg: 'rgba(23,104,209,0.12)' },
+  { value: 'w_transporcie',   label: 'W transporcie',      color: '#B45309', bg: 'rgba(180,83,9,0.12)'   },
+  { value: 'na_placu',        label: 'Na placu',           color: '#7C3AED', bg: 'rgba(124,58,237,0.12)' },
+  { value: 'w_przygotowaniu', label: 'W przygotowaniu',    color: '#0F766E', bg: 'rgba(15,118,110,0.12)' },
+  { value: 'wystawiony',      label: 'Wystawiony',         color: '#15803D', bg: 'rgba(21,128,61,0.12)'  },
+  { value: 'sprzedany',       label: 'Sprzedany',          color: '#6B7280', bg: 'rgba(107,114,128,0.12)'},
+];
+
+const STATUS_MAP = Object.fromEntries(STATUS_OPTIONS.map((s) => [s.value, s])) as Record<CarStatus, typeof STATUS_OPTIONS[0]>;
+
+const StatusBadge = styled.span<{ $color: string; $bg: string }>`
+  display: inline-block;
+  padding: 3px 9px;
+  border-radius: ${({ theme }) => theme.radius.pill};
+  font-size: 11.5px;
+  font-weight: 600;
+  color: ${({ $color }) => $color};
+  background: ${({ $bg }) => $bg};
+  white-space: nowrap;
+`;
+
 // ─── form state ──────────────────────────────────────────────────────────────
 
 interface FormState {
@@ -261,13 +309,15 @@ interface FormState {
   fuelType: string;
   purchasePrice: string;
   listingPrice: string;
+  status: CarStatus;
   notes: string;
 }
 
 const EMPTY_FORM: FormState = {
   brand: '', model: '', year: '', mileage: '',
   driveType: '', engineCapacity: '', enginePower: '',
-  fuelType: '', purchasePrice: '', listingPrice: '', notes: '',
+  fuelType: '', purchasePrice: '', listingPrice: '',
+  status: 'zakupiony', notes: '',
 };
 
 function carToForm(car: OwnedCar): FormState {
@@ -282,6 +332,7 @@ function carToForm(car: OwnedCar): FormState {
     fuelType: car.fuelType ?? '',
     purchasePrice: String(car.purchasePrice),
     listingPrice: car.listingPrice ? String(car.listingPrice) : '',
+    status: (car.status as CarStatus) ?? 'zakupiony',
     notes: car.notes ?? '',
   };
 }
@@ -298,6 +349,7 @@ function formToPayload(f: FormState) {
     fuelType: f.fuelType || null,
     purchasePrice: Number(f.purchasePrice),
     listingPrice: f.listingPrice ? Number(f.listingPrice) : null,
+    status: f.status,
     notes: f.notes.trim() || null,
   };
 }
@@ -393,6 +445,7 @@ export function OwnedClient({ initialRows }: { initialRows: OwnedCar[] }) {
             <thead>
               <tr>
                 <Th>Marka / Model</Th>
+                <Th>Status</Th>
                 <Th>Rocznik</Th>
                 <Th>Przebieg</Th>
                 <Th>Napęd</Th>
@@ -411,6 +464,12 @@ export function OwnedClient({ initialRows }: { initialRows: OwnedCar[] }) {
                   <Tr key={car.id}>
                     <Td>
                       <strong>{car.brand}</strong> {car.model}
+                    </Td>
+                    <Td>
+                      {(() => {
+                        const s = STATUS_MAP[car.status as CarStatus] ?? STATUS_MAP['zakupiony'];
+                        return <StatusBadge $color={s.color} $bg={s.bg}>{s.label}</StatusBadge>;
+                      })()}
                     </Td>
                     <Td>{car.year}</Td>
                     <MonoCell>{car.mileage.toLocaleString('pl-PL')} km</MonoCell>
@@ -501,6 +560,24 @@ export function OwnedClient({ initialRows }: { initialRows: OwnedCar[] }) {
                   <Input type="number" placeholder="np. 22000" value={form.listingPrice} onChange={set('listingPrice')} />
                 </FieldGroup>
               </Grid2>
+              <FieldGroup>
+                <Label>Stan pojazdu</Label>
+                <StatusGrid>
+                  {STATUS_OPTIONS.map((opt) => (
+                    <StatusOption
+                      key={opt.value}
+                      $active={form.status === opt.value}
+                      $color={opt.color}
+                      $bg={opt.bg}
+                      onClick={() => setForm((f) => ({ ...f, status: opt.value }))}
+                      type="button"
+                    >
+                      {opt.label}
+                    </StatusOption>
+                  ))}
+                </StatusGrid>
+              </FieldGroup>
+
               <FieldGroup>
                 <Label>Notatki</Label>
                 <Textarea placeholder="Opcjonalne uwagi..." value={form.notes} onChange={set('notes')} />
