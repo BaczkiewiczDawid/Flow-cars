@@ -141,9 +141,11 @@ async function searchLive(
   const filtered: ScrapedListingDraft[] = [];
   for (const l of all) {
     if (filtered.length >= target) break;
-    if (l.sellerType === 'firma') continue;
-    const sid = l.sellerId ?? l.sellerName;
-    if (sid && (sellerCounts.get(sid) ?? 0) >= dealerThreshold) continue;
+    if (!criteria.includeDealers) {
+      if (l.sellerType === 'firma') continue;
+      const sid = l.sellerId ?? l.sellerName;
+      if (sid && (sellerCounts.get(sid) ?? 0) >= dealerThreshold) continue;
+    }
     filtered.push(l);
     onListingFetched?.();
   }

@@ -4,17 +4,28 @@ import { estimateMarketPrice, canonicalFuel } from '@/lib/marketAnalysis';
 import { getGenerationRange } from '@/lib/generationLookup';
 import { parallelFetch } from '@/lib/scrapers/httpClient';
 import { normalizeFuelType } from '@/lib/scrapers/parseHelpers';
-import { otomotoScraper } from '@/lib/scrapers';
+import { otomotoScraper, autoplacScraper } from '@/lib/scrapers';
 import type { ScrapedListingDraft } from '@/lib/scrapers/types';
 
 interface ParsedParams {
   brand?: string;
   model?: string;
+  urlSlug?: string;
   year?: number;
   mileage?: number;
   engineCapacity?: number;
   enginePower?: number;
   fuelType?: string;
+}
+
+function bmwOtomotoSlug(model: string): string | undefined {
+  const s = model.toUpperCase();
+  const series = s.match(/^(\d)\d/);
+  if (series) return `seria-${series[1]}`;
+  const x = s.match(/^X(\d)/); if (x) return `x${x[1]}`;
+  const m = s.match(/^M(\d)/); if (m) return `m${m[1]}`;
+  const z = s.match(/^Z(\d)/); if (z) return `z${z[1]}`;
+  return undefined;
 }
 
 async function parseOtomotoUrl(url: string): Promise<ParsedParams> {
@@ -128,6 +139,76 @@ async function parseOlxUrl(url: string): Promise<ParsedParams> {
   }
 }
 
+function deepFind(obj: any, keys: string[]): any {
+  if (obj == null) return null;
+  if (Array.isArray(obj)) {
+    for (const item of obj) { const f = deepFind(item, keys); if (f) return f; }
+    return null;
+  }
+  if (typeof obj !== 'object') return null;
+  if (keys.every((k) => k in obj)) return obj;
+  for (const v of Object.values(obj)) { const f = deepFind(v, keys); if (f) return f; }
+  return null;
+}
+
+async function parseAutoplacUrl(url: string): Promise<ParsedParams> {
+  const parts = new URL(url).pathname.split('/').filter(Boolean);
+  // /oferta/{brand}/{model}/{slug}  (4 parts)
+  // /oferta/{brand}/{slug}          (3 parts — no model segment)
+  const cap = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : undefined);
+  const brandSlug = parts[1] ?? '';
+  const brand = cap(brandSlug);
+  const hasModelSeg = parts.length >= 4;
+  const modelFromPath = hasModelSeg ? cap(parts[2] ?? '') : undefined;
+  const slug = hasModelSeg ? (parts[3] ?? '') : (parts[2] ?? '');
+
+  const yearFromSlug = slug.match(/(\d{4})r/)?.[1] ? Number(slug.match(/(\d{4})r/)![1]) : undefined;
+
+  try {
+    const html = await parallelFetch(url);
+    const $ = cheerio.load(html);
+
+    // ng-state (Angular SSR transfer state)
+    const raw = $('script#ng-state').text();
+    if (raw) {
+      try {
+        const offer = deepFind(JSON.parse(raw), ['productionYear', 'mileage']);
+        if (offer) {
+          const model: string = offer.model ?? modelFromPath ?? '';
+          const urlSlug = brand?.toLowerCase() === 'bmw' ? bmwOtomotoSlug(model) : undefined;
+          return {
+            brand: offer.brand ?? brand,
+            model: model || undefined,
+            urlSlug,
+            year: offer.productionYear,
+            mileage: offer.mileage,
+            engineCapacity: offer.engineCapacity,
+            enginePower: offer.enginePowerKW ? Math.round(offer.enginePowerKW * 1.3596) : undefined,
+            fuelType: normalizeFuelType(offer.fuelTypeText ?? offer.fuelType ?? null),
+          };
+        }
+      } catch { /* malformed JSON */ }
+    }
+
+    // Fallback: model from img[alt] e.g. "BMW 330i 2021 na sprzedaż"
+    let modelFromAlt: string | undefined;
+    if (brandSlug) {
+      $('img[alt]').each((_, el) => {
+        if (modelFromAlt) return;
+        const alt = $(el).attr('alt') ?? '';
+        const m = alt.match(new RegExp(`${brandSlug}\\s+([A-Za-z0-9]+)`, 'i'));
+        if (m?.[1] && m[1].length <= 10) modelFromAlt = m[1];
+      });
+    }
+
+    const model = modelFromAlt ?? modelFromPath;
+    const urlSlug = brand?.toLowerCase() === 'bmw' && model ? bmwOtomotoSlug(model) : undefined;
+    return { brand, model, urlSlug, year: yearFromSlug };
+  } catch {
+    return { brand, model: modelFromPath, year: yearFromSlug };
+  }
+}
+
 function filterDealers(listings: ScrapedListingDraft[]): ScrapedListingDraft[] {
   const count = new Map<string, number>();
   for (const l of listings) {
@@ -149,15 +230,19 @@ export async function POST(req: Request) {
     year?: number; mileage?: number;
     engineCapacity?: number; enginePower?: number; fuelType?: string;
   };
+  let urlSlug: string | undefined;
 
   if (url) {
     const parsed = url.includes('otomoto.pl')
       ? await parseOtomotoUrl(url)
       : url.includes('olx.pl')
       ? await parseOlxUrl(url)
+      : url.includes('autoplac.pl')
+      ? await parseAutoplacUrl(url)
       : {};
     brand = brand || parsed.brand;
     model = model || parsed.model;
+    urlSlug = parsed.urlSlug;
     year = year || parsed.year;
     mileage = mileage || parsed.mileage;
     engineCapacity = engineCapacity || parsed.engineCapacity;
@@ -183,20 +268,29 @@ export async function POST(req: Request) {
     yearTo: genRange?.yearTo,
   };
 
-  const [priceResult, rawListings] = await Promise.all([
+  const searchCriteria = {
+    brand,
+    model,
+    urlSlug,
+    yearMin: genRange?.yearFrom ?? (year ? year - 1 : undefined),
+    yearMax: genRange?.yearTo !== 9999 ? genRange?.yearTo : undefined,
+    maxListings: 16,
+    includeDealers: true,
+  };
+
+  // autoplac needs more pages because brand/model filtering is client-side
+  const autoplacCriteria = { ...searchCriteria, maxPages: 8 };
+  const otoMotoCriteria = { ...searchCriteria, maxPages: 2 };
+
+  const [priceResult, otomotoListings, autoplacListings] = await Promise.all([
     estimateMarketPrice(brand, model, carParams),
-    otomotoScraper.search({
-      brand,
-      model,
-      yearMin: genRange?.yearFrom ?? (year ? year - 1 : undefined),
-      yearMax: genRange?.yearTo !== 9999 ? genRange?.yearTo : undefined,
-      maxPages: 2,
-      maxListings: 24,
-    }),
+    otomotoScraper.search(otoMotoCriteria),
+    autoplacScraper.search(autoplacCriteria),
   ]);
+  const rawListings = [...otomotoListings, ...autoplacListings];
 
   const targetFuel = canonicalFuel(fuelType);
-  const listings = filterDealers(rawListings)
+  const listings = rawListings
     .filter((l) => {
       if (!targetFuel) return true;
       const lFuel = canonicalFuel(l.fuelType ?? null);

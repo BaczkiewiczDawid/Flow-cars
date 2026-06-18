@@ -17,7 +17,7 @@ interface CompareListing {
   fuelType?: string;
   city?: string;
   mainPhoto?: string;
-  source: 'otomoto' | 'olx';
+  source: 'olx' | 'otomoto' | 'autoplac';
 }
 
 interface CompareResult {
@@ -282,7 +282,8 @@ const SourceBadge = styled.span<{ $source: string }>`
   letter-spacing: 0.04em;
   padding: 2px 7px;
   border-radius: ${({ theme }) => theme.radius.pill};
-  background: ${({ $source }) => ($source === 'otomoto' ? '#2F8AFF' : '#333')};
+  background: ${({ $source }) =>
+    $source === 'otomoto' ? '#2F8AFF' : $source === 'autoplac' ? '#E84118' : '#333'};
   color: #fff;
 `;
 
@@ -455,9 +456,9 @@ export function CompareClient() {
       <FormCard>
         {tab === 'url' ? (
           <FieldGroup>
-            <Label>Link do ogłoszenia (OLX lub Otomoto)</Label>
+            <Label>Link do ogłoszenia (OLX, Otomoto lub Autoplac)</Label>
             <Input
-              placeholder="https://www.otomoto.pl/... lub https://www.olx.pl/..."
+              placeholder="https://www.otomoto.pl/... lub https://www.olx.pl/... lub https://autoplac.pl/..."
               value={url}
               onChange={(e) => setUrl(e.target.value)}
             />
@@ -593,7 +594,7 @@ export function CompareClient() {
 
           {result.listings.length === 0 && (
             <MarketMeta style={{ textAlign: 'center', padding: '32px 0' }}>
-              Brak porównywalnych ogłoszeń na Otomoto dla podanych parametrów.
+              Brak porównywalnych ogłoszeń dla podanych parametrów.
             </MarketMeta>
           )}
         </>

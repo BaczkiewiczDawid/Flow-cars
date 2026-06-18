@@ -54,6 +54,8 @@ export interface SearchCriteria {
   maxListings?: number;
   /** Próg traktowania sprzedawcy jako handlarza (liczba ogłoszeń tego samego sprzedawcy). */
   dealerListingThreshold?: number;
+  /** Gdy true, nie filtruje ogłoszeń firm/dealerów (używane w trybie porównania cen). */
+  includeDealers?: boolean;
 }
 
 export interface CarScraper {

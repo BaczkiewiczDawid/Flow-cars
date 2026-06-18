@@ -51,12 +51,7 @@ async function getCityCoords(cityName: string): Promise<{ lat: number; lon: numb
 
 async function buildParams(criteria: SearchCriteria, page: number): Promise<URLSearchParams> {
   let seoCategories = 'samochody-osobowe';
-  if (criteria.brand) {
-    seoCategories += `/${slugify(criteria.brand)}`;
-    if (criteria.urlSlug ?? criteria.model) {
-      seoCategories += `/${slugify(criteria.urlSlug ?? criteria.model!)}`;
-    }
-  }
+  // ponytail: seoCategories brand/model slugs are ignored by the API — year/price/location only work
 
   const params = new URLSearchParams({ seoCategories });
   if (criteria.priceMin) params.set('priceFrom', String(criteria.priceMin));
@@ -127,6 +122,9 @@ async function searchLive(
 
   const all: ScrapedListingDraft[] = [];
   const seenIds = new Set<string>();
+  // API doesn't filter by brand/model — collect more pages to compensate for client-side filtering
+  const needsBrandFilter = !!(criteria.brand || criteria.model);
+  const collectLimit = needsBrandFilter ? target * 12 : target * 3;
 
   for (let page = 1; page <= maxPages; page++) {
     if (page > 1) await new Promise((r) => setTimeout(r, 600));
@@ -155,19 +153,30 @@ async function searchLive(
       all.push(draft);
     }
 
-    if (all.length >= target * 3) break;
+    if (all.length >= collectLimit) break;
   }
 
+  // Client-side brand/model filter (API doesn't support these)
+  const brandLower = criteria.brand?.toLowerCase();
+  const modelLower = criteria.model?.toLowerCase();
+  const pool = all.filter((l) => {
+    if (brandLower && l.brand.toLowerCase() !== brandLower) return false;
+    if (modelLower && l.model.toLowerCase() !== modelLower) return false;
+    return true;
+  });
+
   const sellerCounts = new Map<string, number>();
-  for (const l of all) {
+  for (const l of pool) {
     if (l.sellerId) sellerCounts.set(l.sellerId, (sellerCounts.get(l.sellerId) ?? 0) + 1);
   }
 
   const filtered: ScrapedListingDraft[] = [];
-  for (const l of all) {
+  for (const l of pool) {
     if (filtered.length >= target) break;
-    if (l.sellerType === 'firma') continue;
-    if (l.sellerId && (sellerCounts.get(l.sellerId) ?? 0) >= dealerThreshold) continue;
+    if (!criteria.includeDealers) {
+      if (l.sellerType === 'firma') continue;
+      if (l.sellerId && (sellerCounts.get(l.sellerId) ?? 0) >= dealerThreshold) continue;
+    }
     filtered.push(l);
     onListingFetched?.();
   }
