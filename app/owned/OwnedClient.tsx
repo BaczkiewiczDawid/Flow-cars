@@ -346,6 +346,9 @@ interface FormState {
   fuelType: string;
   purchasePrice: string;
   listingPrice: string;
+  salePrice: string;
+  purchaseDate: string;
+  soldAt: string;
   status: CarStatus;
   notes: string;
 }
@@ -353,7 +356,8 @@ interface FormState {
 const EMPTY_FORM: FormState = {
   brand: '', model: '', year: '', mileage: '',
   driveType: '', engineCapacity: '', enginePower: '',
-  fuelType: '', purchasePrice: '', listingPrice: '',
+  fuelType: '', purchasePrice: '', listingPrice: '', salePrice: '',
+  purchaseDate: '', soldAt: '',
   status: 'zakupiony', notes: '',
 };
 
@@ -369,6 +373,9 @@ function carToForm(car: OwnedCar): FormState {
     fuelType: car.fuelType ?? '',
     purchasePrice: String(car.purchasePrice),
     listingPrice: car.listingPrice ? String(car.listingPrice) : '',
+    salePrice: car.salePrice ? String(car.salePrice) : '',
+    purchaseDate: toDateInput(car.purchaseDate),
+    soldAt: toDateInput(car.soldAt),
     status: (car.status as CarStatus) ?? 'zakupiony',
     notes: car.notes ?? '',
   };
@@ -386,6 +393,9 @@ function formToPayload(f: FormState) {
     fuelType: f.fuelType || null,
     purchasePrice: Number(f.purchasePrice),
     listingPrice: f.listingPrice ? Number(f.listingPrice) : null,
+    salePrice: f.status === 'sprzedany' && f.salePrice ? Number(f.salePrice) : null,
+    purchaseDate: f.purchaseDate || null,
+    soldAt: f.status === 'sprzedany' && f.soldAt ? f.soldAt : null,
     status: f.status,
     notes: f.notes.trim() || null,
   };
@@ -394,6 +404,10 @@ function formToPayload(f: FormState) {
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
 function fmt(n: number) { return n.toLocaleString('pl-PL') + ' zł'; }
+function toDateInput(d: Date | string | null | undefined): string {
+  if (!d) return '';
+  return new Date(d).toISOString().slice(0, 10);
+}
 
 function engineLabel(cap?: number | null, power?: number | null) {
   const parts = [];
@@ -429,8 +443,10 @@ export function OwnedClient({ initialRows }: { initialRows: OwnedCar[] }) {
       if (sort.col === 'purchasePrice') return dir * (a.purchasePrice - b.purchasePrice);
       if (sort.col === 'listingPrice') return dir * ((a.listingPrice ?? -1) - (b.listingPrice ?? -1));
       if (sort.col === 'margin') {
-        const ma = a.listingPrice != null ? a.listingPrice - a.purchasePrice : -Infinity;
-        const mb = b.listingPrice != null ? b.listingPrice - b.purchasePrice : -Infinity;
+        const ea = a.salePrice ?? a.listingPrice;
+        const eb = b.salePrice ?? b.listingPrice;
+        const ma = ea != null ? ea - a.purchasePrice : -Infinity;
+        const mb = eb != null ? eb - b.purchasePrice : -Infinity;
         return dir * (ma - mb);
       }
       return 0;
@@ -540,14 +556,15 @@ export function OwnedClient({ initialRows }: { initialRows: OwnedCar[] }) {
                 <Th>Silnik</Th>
                 <Th $sortable onClick={() => toggleSort('purchasePrice')}>Cena zakupu{sortInd('purchasePrice')}</Th>
                 <Th $sortable onClick={() => toggleSort('listingPrice')}>Cena wystawienia{sortInd('listingPrice')}</Th>
+                <Th>Cena sprzedaży</Th>
                 <Th $sortable onClick={() => toggleSort('margin')}>Marża{sortInd('margin')}</Th>
                 <ActionsTh />
               </tr>
             </thead>
             <tbody>
               {visible.map((car) => {
-                const margin =
-                  car.listingPrice != null ? car.listingPrice - car.purchasePrice : null;
+                const effectivePrice = car.salePrice ?? car.listingPrice;
+                const margin = effectivePrice != null ? effectivePrice - car.purchasePrice : null;
                 return (
                   <Tr key={car.id}>
                     <Td>
@@ -565,6 +582,7 @@ export function OwnedClient({ initialRows }: { initialRows: OwnedCar[] }) {
                     <Td>{engineLabel(car.engineCapacity, car.enginePower)}{car.fuelType ? ` · ${car.fuelType}` : ''}</Td>
                     <MonoCell>{fmt(car.purchasePrice)}</MonoCell>
                     <MonoCell>{car.listingPrice != null ? fmt(car.listingPrice) : '—'}</MonoCell>
+                    <MonoCell>{car.salePrice != null ? fmt(car.salePrice) : '—'}</MonoCell>
                     <MarginCell $positive={margin === null ? null : margin >= 0}>
                       {margin === null ? '—' : (margin >= 0 ? '+' : '') + fmt(margin)}
                     </MarginCell>
@@ -649,7 +667,7 @@ export function OwnedClient({ initialRows }: { initialRows: OwnedCar[] }) {
                 </FieldGroup>
               </Grid2>
               <FieldGroup>
-                <Label>Stan pojazdu</Label>
+                <Label>Stan pojazdu *</Label>
                 <StatusGrid>
                   {STATUS_OPTIONS.map((opt) => (
                     <StatusOption
@@ -665,6 +683,26 @@ export function OwnedClient({ initialRows }: { initialRows: OwnedCar[] }) {
                   ))}
                 </StatusGrid>
               </FieldGroup>
+
+              {form.status === 'sprzedany' && (
+                <FieldGroup>
+                  <Label>Cena sprzedaży (zł)</Label>
+                  <Input type="number" placeholder="np. 23000" value={form.salePrice} onChange={set('salePrice')} />
+                </FieldGroup>
+              )}
+
+              <Grid2>
+                <FieldGroup>
+                  <Label>Data zakupu</Label>
+                  <Input type="date" value={form.purchaseDate} onChange={set('purchaseDate')} />
+                </FieldGroup>
+                {form.status === 'sprzedany' && (
+                  <FieldGroup>
+                    <Label>Data sprzedaży</Label>
+                    <Input type="date" value={form.soldAt} onChange={set('soldAt')} />
+                  </FieldGroup>
+                )}
+              </Grid2>
 
               <FieldGroup>
                 <Label>Notatki</Label>

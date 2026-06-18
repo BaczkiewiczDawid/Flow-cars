@@ -1,0 +1,13 @@
+{
+  "yearTolerance": 1,
+  "mileageTolerance": 50000,
+  "engineTolerance": 0,
+  "underpricedThresholdPercent": 15,
+  "requireFuelMatch": true,
+  "dealerListingThreshold": 3,
+  "listingsPerPortal": 100,
+  "locationCity": "Knurów",
+  "locationRadiusKm": 30,
+  "priceMin": 0,
+  "priceMax": 10000
+}

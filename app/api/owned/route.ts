@@ -11,9 +11,13 @@ export async function GET() {
 export async function POST(req: Request) {
   const body = await req.json();
   const now = new Date();
+  const soldAt = body.status === 'sprzedany'
+    ? (body.soldAt ? new Date(body.soldAt) : now)
+    : null;
+  const purchaseDate = body.purchaseDate ? new Date(body.purchaseDate) : null;
   const [row] = await db
     .insert(ownedCars)
-    .values({ ...body, createdAt: now, updatedAt: now })
+    .values({ ...body, soldAt, purchaseDate, createdAt: now, updatedAt: now })
     .returning();
   return NextResponse.json(row, { status: 201 });
 }
