@@ -11,7 +11,9 @@ import {
   Radar,
   GitCompareArrows,
   Car,
+  LogOut,
 } from 'lucide-react';
+import { logout } from '@/app/actions/logout';
 
 const Aside = styled.aside`
   position: fixed;
@@ -194,6 +196,42 @@ const ModeLabel = styled.div`
   margin-top: 2px;
 `;
 
+const UserCard = styled.div`
+  margin-top: 12px;
+  border-radius: ${({ theme }) => theme.radius.md};
+  background: ${({ theme }) => theme.colors.sidebarBgRaised};
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  @media (max-width: 880px) {
+    display: none;
+  }
+`;
+
+const UserEmail = styled.div`
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: ${({ theme }) => theme.colors.sidebarText};
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`;
+
+const LogoutBtn = styled.button`
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: ${({ theme }) => theme.colors.sidebarTextMuted};
+  display: flex;
+  align-items: center;
+  padding: 2px;
+  flex-shrink: 0;
+  &:hover { color: ${({ theme }) => theme.colors.sidebarText}; }
+`;
+
 interface NavConfigItem {
   label: string;
   href: string;
@@ -211,7 +249,7 @@ const mainNav: NavConfigItem[] = [
 ];
 
 
-export function Sidebar({ scraperMode }: { scraperMode: 'mock' | 'live' }) {
+export function Sidebar({ scraperMode, user }: { scraperMode: 'mock' | 'live'; user: { email: string; name?: string | null } }) {
   const pathname = usePathname();
 
   const isItemActive = (href: string) =>
@@ -260,6 +298,15 @@ export function Sidebar({ scraperMode }: { scraperMode: 'mock' | 'live' }) {
           tryb danych: {scraperMode === 'live' ? 'live (skanowanie)' : 'przykładowe'}
         </ModeLabel>
       </SourceCard>
+
+      <UserCard>
+        <UserEmail title={user.email}>{user.name || user.email}</UserEmail>
+        <form action={logout}>
+          <LogoutBtn type="submit" title="Wyloguj się">
+            <LogOut size={14} />
+          </LogoutBtn>
+        </form>
+      </UserCard>
     </Aside>
   );
 }

@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 import { db } from '@/db';
 import { cars } from '@/db/schema';
@@ -11,6 +11,8 @@ import { DescriptionSection } from '@/components/car-detail/DescriptionSection';
 import { EquipmentList } from '@/components/car-detail/EquipmentList';
 import { ContactPanel } from '@/components/car-detail/ContactPanel';
 import { getScraperMode } from '@/lib/scrapers/mode';
+import { fetchOtomotoPhotos } from '@/lib/scrapers/otomoto';
+import { auth } from '@/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,12 +26,27 @@ export default async function CarDetailPage({
 
   if (!Number.isInteger(numericId)) notFound();
 
-  const [car] = await db.select().from(cars).where(eq(cars.id, numericId)).limit(1);
+  const session = await auth();
+  const userId = Number(session!.user.id);
+
+  const [car] = await db
+    .select()
+    .from(cars)
+    .where(and(eq(cars.id, numericId), eq(cars.userId, userId)))
+    .limit(1);
 
   if (!car) notFound();
 
-  const photos: string[] = JSON.parse(car.photosJson || '[]');
+  let photos: string[] = JSON.parse(car.photosJson || '[]');
   const equipment: string[] = JSON.parse(car.equipmentJson || '[]');
+
+  if (car.source === 'otomoto' && photos.length <= 1) {
+    const fetched = await fetchOtomotoPhotos(car.url);
+    if (fetched.length > 0) {
+      photos = fetched;
+      await db.update(cars).set({ photosJson: JSON.stringify(fetched) }).where(eq(cars.id, numericId));
+    }
+  }
   const isMock = getScraperMode() !== 'live';
 
   return (

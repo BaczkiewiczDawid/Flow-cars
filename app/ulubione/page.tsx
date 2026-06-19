@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { db } from '@/db';
 import { cars } from '@/db/schema';
 import { PageContainer } from '@/components/layout/PageContainer';
@@ -6,12 +6,19 @@ import { CarsWithFilter } from '@/components/cars/CarsWithFilter';
 import { buildMarketListingUrl } from '@/lib/marketAnalysis';
 import { getSettings } from '@/lib/settings';
 import type { CarCardData } from '@/components/cars/CarCard';
+import { auth } from '@/auth';
 
 export const dynamic = 'force-dynamic';
 
 export default async function UlubionePage() {
-  const rows = await db.select().from(cars).where(eq(cars.isFavorite, true));
-  const settings = getSettings();
+  const session = await auth();
+  const userId = Number(session!.user.id);
+
+  const rows = await db
+    .select()
+    .from(cars)
+    .where(and(eq(cars.userId, userId), eq(cars.isFavorite, true)));
+  const settings = getSettings(userId);
 
   const cardsData: CarCardData[] = rows.map((car) => ({
     id: car.id,

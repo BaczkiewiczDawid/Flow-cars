@@ -34,7 +34,8 @@ async function main() {
   ]);
   console.log(`Wygenerowano ${drafts.length} ogłoszeń, zapisuję do bazy...`);
 
-  const result = await ingestListings(drafts);
+  // ponytail: userId=1 — seed data belongs to the first user account
+  const result = await ingestListings(drafts, 1);
   console.log(
     `Gotowe. Nowych ofert: ${result.newCount}, zaktualizowanych: ${result.updatedCount}.`
   );

@@ -29,16 +29,25 @@ export const DEFAULT_SETTINGS: AppSettings = {
   priceMax: 0,
 };
 
-const SETTINGS_PATH = path.join(process.cwd(), '.flowcars-settings.json');
+function settingsPath(userId?: number) {
+  return path.join(
+    process.cwd(),
+    userId ? `.flowcars-settings-${userId}.json` : '.flowcars-settings.json'
+  );
+}
 
-export function getSettings(): AppSettings {
+export function getSettings(userId?: number): AppSettings {
   try {
-    return { ...DEFAULT_SETTINGS, ...JSON.parse(fs.readFileSync(SETTINGS_PATH, 'utf-8')) };
+    return { ...DEFAULT_SETTINGS, ...JSON.parse(fs.readFileSync(settingsPath(userId), 'utf-8')) };
   } catch {
     return { ...DEFAULT_SETTINGS };
   }
 }
 
-export function saveSettings(patch: Partial<AppSettings>): void {
-  fs.writeFileSync(SETTINGS_PATH, JSON.stringify({ ...getSettings(), ...patch }, null, 2), 'utf-8');
+export function saveSettings(patch: Partial<AppSettings>, userId?: number): void {
+  fs.writeFileSync(
+    settingsPath(userId),
+    JSON.stringify({ ...getSettings(userId), ...patch }, null, 2),
+    'utf-8'
+  );
 }

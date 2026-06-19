@@ -6,6 +6,7 @@ import { parallelFetch } from '@/lib/scrapers/httpClient';
 import { normalizeFuelType } from '@/lib/scrapers/parseHelpers';
 import { otomotoScraper, autoplacScraper } from '@/lib/scrapers';
 import type { ScrapedListingDraft } from '@/lib/scrapers/types';
+import { auth } from '@/auth';
 
 interface ParsedParams {
   brand?: string;
@@ -223,6 +224,9 @@ function filterDealers(listings: ScrapedListingDraft[]): ScrapedListingDraft[] {
 }
 
 export async function POST(req: Request) {
+  const session = await auth();
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
   const body = await req.json().catch(() => ({}));
   let { url, brand, model, year, mileage, engineCapacity, fuelType, enginePower } = body as {
     url?: string;

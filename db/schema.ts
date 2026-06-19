@@ -7,6 +7,16 @@ import {
   index,
 } from 'drizzle-orm/sqlite-core';
 
+export const users = sqliteTable('users', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  email: text('email').notNull().unique(),
+  passwordHash: text('password_hash').notNull(),
+  name: text('name'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+});
+
+export type User = typeof users.$inferSelect;
+
 /**
  * Główna tabela z ogłoszeniami samochodów znalezionymi przez scrapery
  * OLX i Otomoto. Każdy wiersz to jedno ogłoszenie wraz z wyliczoną
@@ -65,6 +75,8 @@ export const cars = sqliteTable(
 
     isFavorite: integer('is_favorite', { mode: 'boolean' }).notNull().default(false),
 
+    userId: integer('user_id').references(() => users.id),
+
     // Status w obrębie aplikacji (przyszły moduł CRM)
     status: text('status', {
       enum: ['nowa', 'do_sprawdzenia', 'kontakt_wyslany', 'odrzucona', 'kupiona'],
@@ -80,6 +92,7 @@ export const cars = sqliteTable(
   },
   (table) => ({
     sourceExternalIdUnique: uniqueIndex('cars_source_external_id_unique').on(
+      table.userId,
       table.source,
       table.externalId
     ),
@@ -104,6 +117,7 @@ export const scrapeRuns = sqliteTable('scrape_runs', {
   newCount: integer('new_count').notNull().default(0),
   underpricedCount: integer('underpriced_count').notNull().default(0),
   errorMessage: text('error_message'),
+  userId: integer('user_id').references(() => users.id),
 });
 
 export type Car = typeof cars.$inferSelect;
@@ -126,11 +140,13 @@ export const ownedCars = sqliteTable('owned_cars', {
   status: text('status', {
     enum: ['zakupiony', 'w_transporcie', 'na_placu', 'w_przygotowaniu', 'wystawiony', 'sprzedany'],
   }).notNull().default('zakupiony'),
+  isImported: integer('is_imported', { mode: 'boolean' }).notNull().default(false),
   notes: text('notes'),
   purchaseDate: integer('purchase_date', { mode: 'timestamp' }),
   soldAt: integer('sold_at', { mode: 'timestamp' }),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
+  userId: integer('user_id').references(() => users.id),
 });
 
 export type OwnedCar = typeof ownedCars.$inferSelect;

@@ -191,10 +191,19 @@ const Empty = styled.div`
 
 // ─── main ────────────────────────────────────────────────────────────────────
 
+type ImportFilter = 'all' | 'imported' | 'local';
+
+const IMPORT_FILTERS: { value: ImportFilter; label: string }[] = [
+  { value: 'all',      label: 'Wszystkie' },
+  { value: 'imported', label: 'Import'    },
+  { value: 'local',    label: 'Krajowe'   },
+];
+
 export function StatsClient({ rows }: { rows: OwnedCar[] }) {
   const [period, setPeriod] = useState<Period>('month');
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
+  const [importFilter, setImportFilter] = useState<ImportFilter>('all');
 
   const now = new Date();
 
@@ -207,13 +216,21 @@ export function StatsClient({ rows }: { rows: OwnedCar[] }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [period, customFrom, customTo]);
 
+  const filteredRows = useMemo(() =>
+    importFilter === 'all' ? rows
+    : importFilter === 'imported' ? rows.filter((c) => c.isImported)
+    : rows.filter((c) => !c.isImported),
+  [rows, importFilter]);
+
   const soldInPeriod = useMemo(() =>
-    rows.filter((c) => {
+    filteredRows.filter((c) => {
       if (c.status !== 'sprzedany' || !c.soldAt) return false;
       const d = new Date(c.soldAt);
-      return d >= rangeFrom && d <= rangeTo;
+      // Use local-midnight of the soldAt date — avoids UTC-midnight vs CEST offset issues
+      const dDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+      return dDay >= rangeFrom && dDay <= rangeTo;
     }),
-  [rows, rangeFrom, rangeTo]);
+  [filteredRows, rangeFrom, rangeTo]);
 
   const { count, obrot, marza, avgDays } = useMemo(() => {
     const count = soldInPeriod.length;
@@ -227,11 +244,11 @@ export function StatsClient({ rows }: { rows: OwnedCar[] }) {
   }, [soldInPeriod]);
 
   const { naPlaycu, wPrzygotowaniu, wystawione, lacznie } = useMemo(() => ({
-    naPlaycu:       rows.filter((c) => c.status === 'na_placu').length,
-    wPrzygotowaniu: rows.filter((c) => c.status === 'w_przygotowaniu').length,
-    wystawione:     rows.filter((c) => c.status === 'wystawiony').length,
-    lacznie:        rows.filter((c) => c.status !== 'sprzedany').length,
-  }), [rows]);
+    naPlaycu:       filteredRows.filter((c) => c.status === 'na_placu').length,
+    wPrzygotowaniu: filteredRows.filter((c) => c.status === 'w_przygotowaniu').length,
+    wystawione:     filteredRows.filter((c) => c.status === 'wystawiony').length,
+    lacznie:        filteredRows.filter((c) => c.status !== 'sprzedany').length,
+  }), [filteredRows]);
 
   const periodLabel = period === 'month' ? 'bieżący miesiąc'
     : period === 'quarter' ? 'bieżący kwartał'
@@ -242,13 +259,22 @@ export function StatsClient({ rows }: { rows: OwnedCar[] }) {
     <>
       <Header>
         <PageTitle>Statystyki sprzedaży</PageTitle>
-        <PeriodBar>
-          {PERIODS.map((p) => (
-            <PeriodBtn key={p.value} $active={period === p.value} onClick={() => setPeriod(p.value)}>
-              {p.label}
-            </PeriodBtn>
-          ))}
-        </PeriodBar>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          <PeriodBar>
+            {IMPORT_FILTERS.map((f) => (
+              <PeriodBtn key={f.value} $active={importFilter === f.value} onClick={() => setImportFilter(f.value)}>
+                {f.label}
+              </PeriodBtn>
+            ))}
+          </PeriodBar>
+          <PeriodBar>
+            {PERIODS.map((p) => (
+              <PeriodBtn key={p.value} $active={period === p.value} onClick={() => setPeriod(p.value)}>
+                {p.label}
+              </PeriodBtn>
+            ))}
+          </PeriodBar>
+        </div>
       </Header>
 
       {period === 'custom' && (

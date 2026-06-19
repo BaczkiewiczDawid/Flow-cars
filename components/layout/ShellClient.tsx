@@ -21,13 +21,15 @@ const Main = styled.main`
 export function ShellClient({
   children,
   scraperMode,
+  user,
 }: {
   children: React.ReactNode;
   scraperMode: 'mock' | 'live';
+  user: { email: string; name?: string | null };
 }) {
   return (
     <Layout>
-      <Sidebar scraperMode={scraperMode} />
+      <Sidebar scraperMode={scraperMode} user={user} />
       <Main>{children}</Main>
     </Layout>
   );

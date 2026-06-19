@@ -14,11 +14,11 @@ export interface IngestResult {
   updatedCount: number;
 }
 
-async function upsertListing(draft: ScrapedListingDraft): Promise<'new' | 'updated'> {
+async function upsertListing(draft: ScrapedListingDraft, userId: number): Promise<'new' | 'updated'> {
   const existing = await db
     .select({ id: cars.id })
     .from(cars)
-    .where(and(eq(cars.source, draft.source), eq(cars.externalId, draft.externalId)))
+    .where(and(eq(cars.userId, userId), eq(cars.source, draft.source), eq(cars.externalId, draft.externalId)))
     .limit(1);
 
   const now = new Date();
@@ -32,7 +32,6 @@ async function upsertListing(draft: ScrapedListingDraft): Promise<'new' | 'updat
         mileage: draft.mileage,
         description: draft.description,
         equipmentJson: JSON.stringify(draft.equipment),
-        // Nie nadpisujemy zdjęć — zostają te z pierwszego wczytania
         sellerName: draft.sellerName,
         sellerPhone: draft.sellerPhone,
         updatedAt: now,
@@ -41,7 +40,6 @@ async function upsertListing(draft: ScrapedListingDraft): Promise<'new' | 'updat
     return 'updated';
   }
 
-  // Nowe ogłoszenie OtoMoto — pobierz wszystkie zdjęcia ze strony listing
   if (draft.source === 'otomoto' && draft.url) {
     const fullPhotos = await fetchOtomotoPhotos(draft.url);
     if (fullPhotos.length > 0) {
@@ -81,19 +79,20 @@ async function upsertListing(draft: ScrapedListingDraft): Promise<'new' | 'updat
     scrapedAt: now,
     createdAt: now,
     updatedAt: now,
+    userId,
   });
   return 'new';
 }
 
-/** Zapisuje listę zeskrapowanych ofert i przelicza wycenę rynkową dla całej bazy. */
 export async function ingestListings(
-  drafts: ScrapedListingDraft[]
+  drafts: ScrapedListingDraft[],
+  userId: number
 ): Promise<IngestResult> {
   let newCount = 0;
   let updatedCount = 0;
 
   for (const draft of drafts) {
-    const result = await upsertListing(draft);
+    const result = await upsertListing(draft, userId);
     if (result === 'new') newCount++;
     else updatedCount++;
   }
@@ -105,12 +104,13 @@ export async function ingestListings(
   return { totalFound: drafts.length, newCount, updatedCount };
 }
 
-/** Pełny przebieg: wyszukaj na OLX + Otomoto, zapisz, przelicz rynek, zaloguj przebieg skanu. */
 export async function runScrapeAndIngest(
   criteria: SearchCriteria = {},
+  userId: number,
   onProgress?: (done: number, total: number) => void
 ): Promise<IngestResult & { runId: number }> {
-  const { listingsPerPortal, locationCity, locationRadiusKm, priceMin, priceMax } = getSettings();
+  const settings = getSettings(userId);
+  const { listingsPerPortal, locationCity, locationRadiusKm, priceMin, priceMax } = settings;
   const effectiveCriteria: SearchCriteria = {
     priceMin: priceMin || undefined,
     priceMax: priceMax || undefined,
@@ -120,7 +120,7 @@ export async function runScrapeAndIngest(
     maxPages: Math.ceil(listingsPerPortal / 15) + 2,
     ...criteria,
   };
-  const total = (effectiveCriteria.maxListings ?? listingsPerPortal) * 2; // OLX + Otomoto
+  const total = (effectiveCriteria.maxListings ?? listingsPerPortal) * 2;
   let done = 0;
   const onListingFetched = onProgress
     ? () => { onProgress(++done, total); }
@@ -128,17 +128,17 @@ export async function runScrapeAndIngest(
   const startedAt = new Date();
   const [run] = await db
     .insert(scrapeRuns)
-    .values({ source: 'all', startedAt, status: 'running' })
+    .values({ source: 'all', startedAt, status: 'running', userId })
     .returning({ id: scrapeRuns.id });
 
   try {
     const drafts = await searchAll(effectiveCriteria, onListingFetched);
-    const result = await ingestListings(drafts);
+    const result = await ingestListings(drafts, userId);
 
     const underpricedCount = await db
       .select({ count: sql<number>`count(*)` })
       .from(cars)
-      .where(eq(cars.isUnderpriced, true));
+      .where(and(eq(cars.userId, userId), eq(cars.isUnderpriced, true)));
 
     await db
       .update(scrapeRuns)

@@ -1,4 +1,4 @@
-import { desc } from 'drizzle-orm';
+import { desc, eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { cars, scrapeRuns } from '@/db/schema';
 import { PageContainer } from '@/components/layout/PageContainer';
@@ -8,13 +8,13 @@ import { CarsWithFilter } from '@/components/cars/CarsWithFilter';
 import type { CarCardData } from '@/components/cars/CarCard';
 import { buildMarketListingUrl } from '@/lib/marketAnalysis';
 import { getSettings } from '@/lib/settings';
+import { auth } from '@/auth';
 
 export const dynamic = 'force-dynamic';
 
-async function getDashboardData() {
-  const rawCars = await db.select().from(cars);
+async function getDashboardData(userId: number) {
+  const rawCars = await db.select().from(cars).where(eq(cars.userId, userId));
 
-  // Sortowanie po dacie wystawienia — najnowsze pierwsze
   const allCars = rawCars.sort((a, b) => {
     const dateA = (a.listedAt ?? a.scrapedAt).getTime();
     const dateB = (b.listedAt ?? b.scrapedAt).getTime();
@@ -24,6 +24,7 @@ async function getDashboardData() {
   const [lastRun] = await db
     .select({ finishedAt: scrapeRuns.finishedAt })
     .from(scrapeRuns)
+    .where(eq(scrapeRuns.userId, userId))
     .orderBy(desc(scrapeRuns.id))
     .limit(1);
 
@@ -34,13 +35,16 @@ async function getDashboardData() {
         underpricedCars.length
       : null;
 
-  const settings = getSettings();
+  const settings = getSettings(userId);
   return { allCars, underpricedCount: underpricedCars.length, lastRun, avgDiscountPercent, settings };
 }
 
 export default async function DashboardPage() {
+  const session = await auth();
+  const userId = Number(session!.user.id);
+
   const { allCars, underpricedCount, lastRun, avgDiscountPercent, settings } =
-    await getDashboardData();
+    await getDashboardData(userId);
 
   const cardsData: CarCardData[] = allCars.map((car) => ({
     id: car.id,
