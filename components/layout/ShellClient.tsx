@@ -20,7 +20,7 @@ const Main = styled.main`
 
   @media (max-width: 640px) {
     margin-left: 0;
-    padding-bottom: 68px;
+    padding-top: 52px;
   }
 `;
 

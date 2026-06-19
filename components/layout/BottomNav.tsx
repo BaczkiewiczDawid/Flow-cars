@@ -1,56 +1,166 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import styled from 'styled-components';
 import {
-  LayoutDashboard,
-  Heart,
-  BarChart3,
-  Settings,
-  GitCompareArrows,
-  Car,
+  LayoutDashboard, Heart, BarChart3, Settings,
+  GitCompareArrows, Car, Menu, X, Radar, LogOut,
 } from 'lucide-react';
+import { logout } from '@/app/actions/logout';
 
-const Bar = styled.nav`
+const TopBar = styled.header`
   display: none;
 
   @media (max-width: 640px) {
     display: flex;
     position: fixed;
-    bottom: 0;
+    top: 0;
     left: 0;
     right: 0;
-    height: 60px;
+    height: 52px;
     background: ${({ theme }) => theme.colors.sidebarBg};
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
-    z-index: 30;
-    align-items: stretch;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    z-index: 40;
   }
 `;
 
-const Item = styled.div<{ $active?: boolean }>`
-  flex: 1;
+const Brand = styled.div`
   display: flex;
-  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 3px;
-  font-size: 10px;
+  gap: 8px;
+  color: ${({ theme }) => theme.colors.sidebarTextActive};
+  font-family: ${({ theme }) => theme.font.display};
+  font-weight: 700;
+  font-size: 16px;
+`;
+
+const BrandMark = styled.div`
+  width: 28px;
+  height: 28px;
+  border-radius: ${({ theme }) => theme.radius.sm};
+  background: ${({ theme }) => theme.colors.accent};
+  display: grid;
+  place-items: center;
+  color: #fff;
+`;
+
+const HamburgerBtn = styled.button`
+  background: none;
+  border: none;
+  color: ${({ theme }) => theme.colors.sidebarTextActive};
+  display: flex;
+  align-items: center;
+  padding: 4px;
+  cursor: pointer;
+`;
+
+const Overlay = styled.div<{ $open: boolean }>`
+  display: none;
+
+  @media (max-width: 640px) {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 41;
+    opacity: ${({ $open }) => ($open ? 1 : 0)};
+    pointer-events: ${({ $open }) => ($open ? 'auto' : 'none')};
+    transition: opacity 200ms ease;
+  }
+`;
+
+const Drawer = styled.nav<{ $open: boolean }>`
+  display: none;
+
+  @media (max-width: 640px) {
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 260px;
+    background: ${({ theme }) => theme.colors.sidebarBg};
+    z-index: 42;
+    padding: 16px;
+    transform: ${({ $open }) => ($open ? 'translateX(0)' : 'translateX(-100%)')};
+    transition: transform 220ms ease;
+  }
+`;
+
+const DrawerHeader = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  margin-bottom: 12px;
+`;
+
+const CloseBtn = styled.button`
+  background: none;
+  border: none;
+  color: ${({ theme }) => theme.colors.sidebarTextMuted};
+  display: flex;
+  align-items: center;
+  padding: 4px;
+  cursor: pointer;
+`;
+
+const NavItem = styled.div<{ $active?: boolean }>`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 12px;
+  border-radius: ${({ theme }) => theme.radius.sm};
+  font-size: 14px;
   font-weight: 500;
   color: ${({ theme, $active }) =>
-    $active ? theme.colors.accent : theme.colors.sidebarTextMuted};
+    $active ? theme.colors.sidebarTextActive : theme.colors.sidebarText};
+  background: ${({ $active }) => ($active ? 'rgba(255,255,255,0.07)' : 'transparent')};
   cursor: pointer;
-  transition: color 120ms ease;
+  transition: background 120ms ease;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.06);
+  }
 
   svg {
     flex-shrink: 0;
+    color: ${({ theme, $active }) => ($active ? theme.colors.accent : 'currentColor')};
   }
+`;
+
+const Spacer = styled.div`flex: 1;`;
+
+const LogoutItem = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 12px;
+  border-radius: ${({ theme }) => theme.radius.sm};
+  font-size: 14px;
+  font-weight: 500;
+  color: ${({ theme }) => theme.colors.sidebarTextMuted};
+  cursor: pointer;
+  transition: background 120ms ease;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.06);
+    color: ${({ theme }) => theme.colors.sidebarText};
+  }
+
+  svg { flex-shrink: 0; }
 `;
 
 const nav = [
   { label: 'Dashboard', href: '/', icon: LayoutDashboard },
-  { label: 'Porównaj', href: '/compare', icon: GitCompareArrows },
+  { label: 'Porównaj ofertę', href: '/compare', icon: GitCompareArrows },
   { label: 'Posiadane', href: '/owned', icon: Car },
   { label: 'Ulubione', href: '/ulubione', icon: Heart },
   { label: 'Statystyki', href: '/statystyki', icon: BarChart3 },
@@ -59,19 +169,58 @@ const nav = [
 
 export function BottomNav() {
   const pathname = usePathname();
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => { setOpen(false); }, [pathname]);
+
   const isActive = (href: string) =>
     href === '/' ? pathname === '/' || pathname.startsWith('/cars') : pathname === href;
 
   return (
-    <Bar>
-      {nav.map(({ label, href, icon: Icon }) => (
-        <Link key={href} href={href} style={{ flex: 1 }}>
-          <Item $active={isActive(href)}>
-            <Icon size={20} />
-            {label}
-          </Item>
-        </Link>
-      ))}
-    </Bar>
+    <>
+      <TopBar>
+        <Brand>
+          <BrandMark><Radar size={14} /></BrandMark>
+          Flow Cars
+        </Brand>
+        <HamburgerBtn onClick={() => setOpen(true)} aria-label="Menu">
+          <Menu size={22} />
+        </HamburgerBtn>
+      </TopBar>
+
+      <Overlay $open={open} onClick={() => setOpen(false)} />
+
+      <Drawer $open={open}>
+        <DrawerHeader>
+          <Brand>
+            <BrandMark><Radar size={14} /></BrandMark>
+            Flow Cars
+          </Brand>
+          <CloseBtn onClick={() => setOpen(false)} aria-label="Zamknij menu">
+            <X size={20} />
+          </CloseBtn>
+        </DrawerHeader>
+
+        {nav.map(({ label, href, icon: Icon }) => (
+          <Link key={href} href={href}>
+            <NavItem $active={isActive(href)}>
+              <Icon size={18} />
+              {label}
+            </NavItem>
+          </Link>
+        ))}
+
+        <Spacer />
+
+        <form action={logout}>
+          <button type="submit" style={{ width: '100%', background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}>
+            <LogoutItem>
+              <LogOut size={18} />
+              Wyloguj się
+            </LogoutItem>
+          </button>
+        </form>
+      </Drawer>
+    </>
   );
 }
