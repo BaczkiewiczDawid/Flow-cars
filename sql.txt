@@ -1,0 +1,92 @@
+CREATE TABLE "cars" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"source" text NOT NULL,
+	"external_id" text NOT NULL,
+	"url" text NOT NULL,
+	"title" text NOT NULL,
+	"brand" text NOT NULL,
+	"model" text NOT NULL,
+	"generation" text,
+	"production_year" integer NOT NULL,
+	"engine_capacity" integer,
+	"engine_power" integer,
+	"fuel_type" text,
+	"gearbox" text,
+	"body_type" text,
+	"color" text,
+	"mileage" integer NOT NULL,
+	"price" integer NOT NULL,
+	"currency" text DEFAULT 'PLN' NOT NULL,
+	"estimated_market_price" integer,
+	"price_deviation_percent" real,
+	"comparable_sample_size" integer DEFAULT 0,
+	"is_underpriced" boolean DEFAULT false NOT NULL,
+	"voivodeship" text,
+	"city" text,
+	"description" text DEFAULT '' NOT NULL,
+	"equipment_json" text DEFAULT '[]' NOT NULL,
+	"photos_json" text DEFAULT '[]' NOT NULL,
+	"main_photo" text,
+	"seller_name" text,
+	"seller_phone" text,
+	"seller_type" text,
+	"is_favorite" boolean DEFAULT false NOT NULL,
+	"user_id" uuid,
+	"status" text DEFAULT 'nowa' NOT NULL,
+	"listed_at" timestamp,
+	"scraped_at" timestamp NOT NULL,
+	"created_at" timestamp NOT NULL,
+	"updated_at" timestamp NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "owned_cars" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"brand" text NOT NULL,
+	"model" text NOT NULL,
+	"year" integer NOT NULL,
+	"mileage" integer NOT NULL,
+	"drive_type" text,
+	"engine_capacity" integer,
+	"engine_power" integer,
+	"fuel_type" text,
+	"purchase_price" integer NOT NULL,
+	"listing_price" integer,
+	"sale_price" integer,
+	"status" text DEFAULT 'zakupiony' NOT NULL,
+	"is_imported" boolean DEFAULT false NOT NULL,
+	"notes" text,
+	"purchase_date" timestamp,
+	"sold_at" timestamp,
+	"created_at" timestamp NOT NULL,
+	"updated_at" timestamp NOT NULL,
+	"user_id" uuid
+);
+--> statement-breakpoint
+CREATE TABLE "scrape_runs" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"source" text NOT NULL,
+	"started_at" timestamp NOT NULL,
+	"finished_at" timestamp,
+	"status" text DEFAULT 'running' NOT NULL,
+	"found_count" integer DEFAULT 0 NOT NULL,
+	"new_count" integer DEFAULT 0 NOT NULL,
+	"underpriced_count" integer DEFAULT 0 NOT NULL,
+	"error_message" text,
+	"user_id" uuid
+);
+--> statement-breakpoint
+CREATE TABLE "users" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"email" text NOT NULL,
+	"password_hash" text NOT NULL,
+	"name" text,
+	"created_at" timestamp NOT NULL,
+	CONSTRAINT "users_email_unique" UNIQUE("email")
+);
+--> statement-breakpoint
+ALTER TABLE "cars" ADD CONSTRAINT "cars_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "owned_cars" ADD CONSTRAINT "owned_cars_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "scrape_runs" ADD CONSTRAINT "scrape_runs_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+CREATE UNIQUE INDEX "cars_source_external_id_unique" ON "cars" USING btree ("user_id","source","external_id");--> statement-breakpoint
+CREATE INDEX "cars_brand_model_idx" ON "cars" USING btree ("brand","model");--> statement-breakpoint
+CREATE INDEX "cars_is_underpriced_idx" ON "cars" USING btree ("is_underpriced");

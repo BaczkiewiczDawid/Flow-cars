@@ -10,8 +10,12 @@ export const authConfig: NextAuthConfig = {
   providers: [],
   pages: { signIn: '/login' },
   callbacks: {
+    jwt({ token, user }) {
+      if (user?.id) token.sub = user.id;
+      return token;
+    },
     session({ session, token }) {
-      session.user.id = token.sub!;
+      if (token.sub) session.user.id = token.sub;
       return session;
     },
   },
