@@ -7,7 +7,7 @@ import { auth } from '@/auth';
 export async function GET() {
   const session = await auth();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const userId = Number(session.user.id);
+  const userId = session.user.id;
 
   const rows = await db
     .select()
@@ -20,7 +20,7 @@ export async function GET() {
 export async function POST(req: Request) {
   const session = await auth();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const userId = Number(session.user.id);
+  const userId = session.user.id;
 
   const body = await req.json();
   const now = new Date();

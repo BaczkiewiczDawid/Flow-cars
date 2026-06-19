@@ -4,19 +4,19 @@ import { auth } from '@/auth';
 
 async function getUserId() {
   const session = await auth();
-  return session ? Number(session.user.id) : undefined;
+  return session ? session.user.id : undefined;
 }
 
 export async function GET() {
   const session = await auth();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  return NextResponse.json(getSettings(Number(session.user.id)));
+  return NextResponse.json(getSettings(session.user.id));
 }
 
 export async function PUT(req: Request) {
   const session = await auth();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const userId = Number(session.user.id);
+  const userId = session.user.id;
 
   const body = await req.json().catch(() => null);
   if (!body || typeof body !== 'object') {
@@ -29,7 +29,7 @@ export async function PUT(req: Request) {
 export async function DELETE() {
   const session = await auth();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const userId = Number(session.user.id);
+  const userId = session.user.id;
 
   saveSettings(DEFAULT_SETTINGS, userId);
   return NextResponse.json(getSettings(userId));

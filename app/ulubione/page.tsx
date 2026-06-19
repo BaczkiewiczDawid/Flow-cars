@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic';
 
 export default async function UlubionePage() {
   const session = await auth();
-  const userId = Number(session!.user.id);
+  const userId = session!.user.id;
 
   const rows = await db
     .select()

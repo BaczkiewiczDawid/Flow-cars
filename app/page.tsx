@@ -12,7 +12,7 @@ import { auth } from '@/auth';
 
 export const dynamic = 'force-dynamic';
 
-async function getDashboardData(userId: number) {
+async function getDashboardData(userId: string) {
   const rawCars = await db.select().from(cars).where(eq(cars.userId, userId));
 
   const allCars = rawCars.sort((a, b) => {
@@ -41,7 +41,7 @@ async function getDashboardData(userId: number) {
 
 export default async function DashboardPage() {
   const session = await auth();
-  const userId = Number(session!.user.id);
+  const userId = session!.user.id;
 
   const { allCars, underpricedCount, lastRun, avgDiscountPercent, settings } =
     await getDashboardData(userId);

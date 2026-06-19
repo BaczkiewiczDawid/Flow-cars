@@ -27,7 +27,7 @@ export default async function CarDetailPage({
   if (!Number.isInteger(numericId)) notFound();
 
   const session = await auth();
-  const userId = Number(session!.user.id);
+  const userId = session!.user.id;
 
   const [car] = await db
     .select()

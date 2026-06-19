@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { db } from './index';
-import { cars, scrapeRuns } from './schema';
+import { cars, scrapeRuns, users } from './schema';
 import { CAR_CATALOG, generateListingsForEntry } from '@/lib/scrapers/catalog';
 import { ingestListings } from '@/lib/ingestListings';
 
@@ -13,6 +13,9 @@ import { ingestListings } from '@/lib/ingestListings';
  *   npm run scrape
  */
 async function main() {
+  const [firstUser] = await db.select({ id: users.id }).from(users).limit(1);
+  if (!firstUser) throw new Error('Brak użytkowników — utwórz konto na /setup przed seedowaniem.');
+
   console.log('Czyszczę istniejące dane...');
   await db.delete(cars);
   await db.delete(scrapeRuns);
@@ -34,8 +37,7 @@ async function main() {
   ]);
   console.log(`Wygenerowano ${drafts.length} ogłoszeń, zapisuję do bazy...`);
 
-  // ponytail: userId=1 — seed data belongs to the first user account
-  const result = await ingestListings(drafts, 1);
+  const result = await ingestListings(drafts, firstUser.id);
   console.log(
     `Gotowe. Nowych ofert: ${result.newCount}, zaktualizowanych: ${result.updatedCount}.`
   );

@@ -1,94 +1,79 @@
 import {
-  sqliteTable,
+  pgTable,
   text,
   integer,
   real,
+  serial,
+  boolean,
+  uuid,
+  timestamp,
   uniqueIndex,
   index,
-} from 'drizzle-orm/sqlite-core';
+} from 'drizzle-orm/pg-core';
 
-export const users = sqliteTable('users', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
+export const users = pgTable('users', {
+  id: uuid('id').primaryKey().defaultRandom(),
   email: text('email').notNull().unique(),
   passwordHash: text('password_hash').notNull(),
   name: text('name'),
-  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull(),
 });
 
 export type User = typeof users.$inferSelect;
 
-/**
- * Główna tabela z ogłoszeniami samochodów znalezionymi przez scrapery
- * OLX i Otomoto. Każdy wiersz to jedno ogłoszenie wraz z wyliczoną
- * wyceną rynkową i informacją, czy oferta jest okazją (poniżej rynku).
- */
-export const cars = sqliteTable(
+export const cars = pgTable(
   'cars',
   {
-    id: integer('id').primaryKey({ autoIncrement: true }),
+    id: serial('id').primaryKey(),
 
-    // Pochodzenie ogłoszenia
-    source: text('source', { enum: ['olx', 'otomoto', 'autoplac'] }).notNull(),
+    source: text('source').notNull().$type<'olx' | 'otomoto' | 'autoplac'>(),
     externalId: text('external_id').notNull(),
     url: text('url').notNull(),
 
-    // Podstawowe dane samochodu
     title: text('title').notNull(),
     brand: text('brand').notNull(),
     model: text('model').notNull(),
     generation: text('generation'),
     productionYear: integer('production_year').notNull(),
 
-    // Silnik / dane techniczne
-    engineCapacity: integer('engine_capacity'), // cm3
-    enginePower: integer('engine_power'), // KM
+    engineCapacity: integer('engine_capacity'),
+    enginePower: integer('engine_power'),
     fuelType: text('fuel_type'),
     gearbox: text('gearbox'),
     bodyType: text('body_type'),
     color: text('color'),
-    mileage: integer('mileage').notNull(), // km
+    mileage: integer('mileage').notNull(),
 
-    // Cena i wycena
-    price: integer('price').notNull(), // cena z ogłoszenia (zakupu), w groszach... -> tu w PLN (integer)
+    price: integer('price').notNull(),
     currency: text('currency').notNull().default('PLN'),
-    estimatedMarketPrice: integer('estimated_market_price'), // potencjalna cena sprzedaży
-    priceDeviationPercent: real('price_deviation_percent'), // (price - market) / market * 100
+    estimatedMarketPrice: integer('estimated_market_price'),
+    priceDeviationPercent: real('price_deviation_percent'),
     comparableSampleSize: integer('comparable_sample_size').default(0),
-    isUnderpriced: integer('is_underpriced', { mode: 'boolean' })
-      .notNull()
-      .default(false),
+    isUnderpriced: boolean('is_underpriced').notNull().default(false),
 
-    // Lokalizacja
     voivodeship: text('voivodeship'),
     city: text('city'),
 
-    // Treść ogłoszenia
     description: text('description').notNull().default(''),
-    equipmentJson: text('equipment_json').notNull().default('[]'), // JSON string[]
-    photosJson: text('photos_json').notNull().default('[]'), // JSON string[]
+    equipmentJson: text('equipment_json').notNull().default('[]'),
+    photosJson: text('photos_json').notNull().default('[]'),
     mainPhoto: text('main_photo'),
 
-    // Sprzedający
     sellerName: text('seller_name'),
     sellerPhone: text('seller_phone'),
-    sellerType: text('seller_type', { enum: ['prywatny', 'firma'] }),
+    sellerType: text('seller_type').$type<'prywatny' | 'firma'>(),
 
-    isFavorite: integer('is_favorite', { mode: 'boolean' }).notNull().default(false),
+    isFavorite: boolean('is_favorite').notNull().default(false),
 
-    userId: integer('user_id').references(() => users.id),
+    userId: uuid('user_id').references(() => users.id),
 
-    // Status w obrębie aplikacji (przyszły moduł CRM)
-    status: text('status', {
-      enum: ['nowa', 'do_sprawdzenia', 'kontakt_wyslany', 'odrzucona', 'kupiona'],
-    })
-      .notNull()
-      .default('nowa'),
+    status: text('status').notNull().default('nowa')
+      .$type<'nowa' | 'do_sprawdzenia' | 'kontakt_wyslany' | 'odrzucona' | 'kupiona'>(),
 
-    // Znaczniki czasu
-    listedAt: integer('listed_at', { mode: 'timestamp' }), // data wystawienia na serwisie
-    scrapedAt: integer('scraped_at', { mode: 'timestamp' }).notNull(),
-    createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
-    updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
+    listedAt: timestamp('listed_at', { mode: 'date' }),
+    scrapedAt: timestamp('scraped_at', { mode: 'date' }).notNull(),
+    createdAt: timestamp('created_at', { mode: 'date' }).notNull(),
+    updatedAt: timestamp('updated_at', { mode: 'date' }).notNull(),
   },
   (table) => ({
     sourceExternalIdUnique: uniqueIndex('cars_source_external_id_unique').on(
@@ -101,52 +86,46 @@ export const cars = sqliteTable(
   })
 );
 
-/**
- * Log uruchomień scrapera - przyda się do przyszłej zakładki
- * "Wyszukiwania" w panelu nawigacji (historia, statystyki skanów).
- */
-export const scrapeRuns = sqliteTable('scrape_runs', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
-  source: text('source', { enum: ['olx', 'otomoto', 'all'] }).notNull(),
-  startedAt: integer('started_at', { mode: 'timestamp' }).notNull(),
-  finishedAt: integer('finished_at', { mode: 'timestamp' }),
-  status: text('status', { enum: ['running', 'success', 'error'] })
-    .notNull()
-    .default('running'),
+export const scrapeRuns = pgTable('scrape_runs', {
+  id: serial('id').primaryKey(),
+  source: text('source').notNull().$type<'olx' | 'otomoto' | 'all'>(),
+  startedAt: timestamp('started_at', { mode: 'date' }).notNull(),
+  finishedAt: timestamp('finished_at', { mode: 'date' }),
+  status: text('status').notNull().default('running')
+    .$type<'running' | 'success' | 'error'>(),
   foundCount: integer('found_count').notNull().default(0),
   newCount: integer('new_count').notNull().default(0),
   underpricedCount: integer('underpriced_count').notNull().default(0),
   errorMessage: text('error_message'),
-  userId: integer('user_id').references(() => users.id),
+  userId: uuid('user_id').references(() => users.id),
 });
 
 export type Car = typeof cars.$inferSelect;
 export type NewCar = typeof cars.$inferInsert;
 export type ScrapeRun = typeof scrapeRuns.$inferSelect;
 
-export const ownedCars = sqliteTable('owned_cars', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
+export const ownedCars = pgTable('owned_cars', {
+  id: serial('id').primaryKey(),
   brand: text('brand').notNull(),
   model: text('model').notNull(),
   year: integer('year').notNull(),
   mileage: integer('mileage').notNull(),
-  driveType: text('drive_type'),       // FWD / RWD / AWD / 4x4
-  engineCapacity: integer('engine_capacity'), // cm³
-  enginePower: integer('engine_power'),       // KM
+  driveType: text('drive_type'),
+  engineCapacity: integer('engine_capacity'),
+  enginePower: integer('engine_power'),
   fuelType: text('fuel_type'),
   purchasePrice: integer('purchase_price').notNull(),
   listingPrice: integer('listing_price'),
-  salePrice: integer('sale_price'),           // null = nie sprzedany
-  status: text('status', {
-    enum: ['zakupiony', 'w_transporcie', 'na_placu', 'w_przygotowaniu', 'wystawiony', 'sprzedany'],
-  }).notNull().default('zakupiony'),
-  isImported: integer('is_imported', { mode: 'boolean' }).notNull().default(false),
+  salePrice: integer('sale_price'),
+  status: text('status').notNull().default('zakupiony')
+    .$type<'zakupiony' | 'w_transporcie' | 'na_placu' | 'w_przygotowaniu' | 'wystawiony' | 'sprzedany'>(),
+  isImported: boolean('is_imported').notNull().default(false),
   notes: text('notes'),
-  purchaseDate: integer('purchase_date', { mode: 'timestamp' }),
-  soldAt: integer('sold_at', { mode: 'timestamp' }),
-  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
-  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
-  userId: integer('user_id').references(() => users.id),
+  purchaseDate: timestamp('purchase_date', { mode: 'date' }),
+  soldAt: timestamp('sold_at', { mode: 'date' }),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull(),
+  updatedAt: timestamp('updated_at', { mode: 'date' }).notNull(),
+  userId: uuid('user_id').references(() => users.id),
 });
 
 export type OwnedCar = typeof ownedCars.$inferSelect;

@@ -14,7 +14,7 @@ export interface IngestResult {
   updatedCount: number;
 }
 
-async function upsertListing(draft: ScrapedListingDraft, userId: number): Promise<'new' | 'updated'> {
+async function upsertListing(draft: ScrapedListingDraft, userId: string): Promise<'new' | 'updated'> {
   const existing = await db
     .select({ id: cars.id })
     .from(cars)
@@ -86,7 +86,7 @@ async function upsertListing(draft: ScrapedListingDraft, userId: number): Promis
 
 export async function ingestListings(
   drafts: ScrapedListingDraft[],
-  userId: number
+  userId: string
 ): Promise<IngestResult> {
   let newCount = 0;
   let updatedCount = 0;
@@ -106,7 +106,7 @@ export async function ingestListings(
 
 export async function runScrapeAndIngest(
   criteria: SearchCriteria = {},
-  userId: number,
+  userId: string,
   onProgress?: (done: number, total: number) => void
 ): Promise<IngestResult & { runId: number }> {
   const settings = getSettings(userId);

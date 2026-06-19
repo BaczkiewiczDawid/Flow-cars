@@ -7,7 +7,7 @@ import { auth } from '@/auth';
 export async function POST(_: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const userId = Number(session.user.id);
+  const userId = session.user.id;
 
   const { id } = await params;
   const [existing] = await db

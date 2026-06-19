@@ -350,6 +350,7 @@ interface FormState {
   purchaseDate: string;
   soldAt: string;
   status: CarStatus;
+  isImported: boolean;
   notes: string;
 }
 
@@ -358,7 +359,7 @@ const EMPTY_FORM: FormState = {
   driveType: '', engineCapacity: '', enginePower: '',
   fuelType: '', purchasePrice: '', listingPrice: '', salePrice: '',
   purchaseDate: '', soldAt: '',
-  status: 'zakupiony', notes: '',
+  status: 'zakupiony', isImported: false, notes: '',
 };
 
 function carToForm(car: OwnedCar): FormState {
@@ -377,6 +378,7 @@ function carToForm(car: OwnedCar): FormState {
     purchaseDate: toDateInput(car.purchaseDate),
     soldAt: toDateInput(car.soldAt),
     status: (car.status as CarStatus) ?? 'zakupiony',
+    isImported: car.isImported ?? false,
     notes: car.notes ?? '',
   };
 }
@@ -397,6 +399,7 @@ function formToPayload(f: FormState) {
     purchaseDate: f.purchaseDate || null,
     soldAt: f.status === 'sprzedany' && f.soldAt ? f.soldAt : null,
     status: f.status,
+    isImported: f.isImported,
     notes: f.notes.trim() || null,
   };
 }
@@ -552,6 +555,7 @@ export function OwnedClient({ initialRows }: { initialRows: OwnedCar[] }) {
                 <Th>Status</Th>
                 <Th $sortable onClick={() => toggleSort('year')}>Rocznik{sortInd('year')}</Th>
                 <Th $sortable onClick={() => toggleSort('mileage')}>Przebieg{sortInd('mileage')}</Th>
+                <Th>Import</Th>
                 <Th>Napęd</Th>
                 <Th>Silnik</Th>
                 <Th $sortable onClick={() => toggleSort('purchasePrice')}>Cena zakupu{sortInd('purchasePrice')}</Th>
@@ -578,6 +582,11 @@ export function OwnedClient({ initialRows }: { initialRows: OwnedCar[] }) {
                     </Td>
                     <Td>{car.year}</Td>
                     <MonoCell>{car.mileage.toLocaleString('pl-PL')} km</MonoCell>
+                    <Td>
+                      {car.isImported
+                        ? <StatusBadge $color="#0F766E" $bg="rgba(15,118,110,0.12)">Tak</StatusBadge>
+                        : <span style={{ color: 'var(--ink-faint, #aaa)', fontSize: 13 }}>—</span>}
+                    </Td>
                     <Td>{car.driveType ?? '—'}</Td>
                     <Td>{engineLabel(car.engineCapacity, car.enginePower)}{car.fuelType ? ` · ${car.fuelType}` : ''}</Td>
                     <MonoCell>{fmt(car.purchasePrice)}</MonoCell>
@@ -656,6 +665,23 @@ export function OwnedClient({ initialRows }: { initialRows: OwnedCar[] }) {
                 <FieldGroup>
                   <Label>Moc (KM)</Label>
                   <Input type="number" placeholder="np. 150" value={form.enginePower} onChange={set('enginePower')} />
+                </FieldGroup>
+                <FieldGroup style={{ gridColumn: '1 / -1' }}>
+                  <Label>Importowany</Label>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    {[{ val: false, label: 'Nie' }, { val: true, label: 'Tak' }].map(({ val, label }) => (
+                      <StatusOption
+                        key={label}
+                        type="button"
+                        $active={form.isImported === val}
+                        $color={val ? '#0F766E' : '#6B7280'}
+                        $bg={val ? 'rgba(15,118,110,0.12)' : 'rgba(107,114,128,0.12)'}
+                        onClick={() => setForm((f) => ({ ...f, isImported: val }))}
+                      >
+                        {label}
+                      </StatusOption>
+                    ))}
+                  </div>
                 </FieldGroup>
                 <FieldGroup>
                   <Label>Cena zakupu (zł) *</Label>

@@ -10,7 +10,7 @@ export async function GET(
 ) {
   const session = await auth();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const userId = Number(session.user.id);
+  const userId = session.user.id;
 
   const { id } = await params;
   const numericId = Number(id);

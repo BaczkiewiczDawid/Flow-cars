@@ -7,7 +7,7 @@ import { auth } from '@/auth';
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const userId = Number(session.user.id);
+  const userId = session.user.id;
 
   const { id } = await params;
   const body = await req.json();
@@ -32,7 +32,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 export async function DELETE(_: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const userId = Number(session.user.id);
+  const userId = session.user.id;
 
   const { id } = await params;
   await db.delete(ownedCars).where(and(eq(ownedCars.id, Number(id)), eq(ownedCars.userId, userId)));
