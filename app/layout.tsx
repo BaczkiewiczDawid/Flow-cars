@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import Providers from '@/lib/styled/Providers';
 import { Shell } from '@/components/layout/Shell';
 
@@ -6,6 +6,11 @@ export const metadata: Metadata = {
   title: 'Flow Cars - skaner ofert OLX i Otomoto',
   description:
     'Panel dla autohandlu do wyszukiwania samochodów wystawionych poniżej ceny rynkowej na OLX i Otomoto.',
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
 };
 
 export default function RootLayout({

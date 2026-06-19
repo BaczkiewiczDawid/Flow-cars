@@ -32,6 +32,10 @@ const Aside = styled.aside`
     padding: 20px 12px;
     align-items: center;
   }
+
+  @media (max-width: 640px) {
+    display: none;
+  }
 `;
 
 const Brand = styled.div`

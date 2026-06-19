@@ -67,6 +67,11 @@ const SortPill = styled.button<{ $active: boolean }>`
   background: ${({ $active, theme }) => ($active ? theme.colors.surface : 'transparent')};
   color: ${({ $active, theme }) => ($active ? theme.colors.ink : theme.colors.inkSoft)};
   box-shadow: ${({ $active, theme }) => ($active ? theme.shadow.card : 'none')};
+
+  @media (max-width: 640px) {
+    padding: 5px 9px;
+    font-size: 12px;
+  }
 `;
 
 const Label = styled.label`
@@ -126,6 +131,11 @@ const SourcePill = styled.button<{ $active: boolean }>`
   background: ${({ $active, theme }) => ($active ? theme.colors.ink : 'transparent')};
   color: ${({ $active, theme }) => ($active ? theme.colors.surface : theme.colors.inkSoft)};
   box-shadow: ${({ $active, theme }) => ($active ? theme.shadow.card : 'none')};
+
+  @media (max-width: 640px) {
+    padding: 5px 9px;
+    font-size: 12px;
+  }
 `;
 
 // ─────────────────────────────────────────────────────────────────────────────

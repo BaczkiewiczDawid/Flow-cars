@@ -170,6 +170,31 @@ async function searchMock(criteria: SearchCriteria): Promise<ScrapedListingDraft
   return criteria.priceMax ? listings.filter((l) => l.price <= criteria.priceMax!) : listings;
 }
 
+function extractPhotosFromAdvert(advert: any): string[] {
+  const out: string[] = [];
+
+  // Aktualna struktura: advert.images.photos[].url (string)
+  const photosArr: any[] = Array.isArray(advert?.images?.photos)
+    ? advert.images.photos
+    : Array.isArray(advert?.images)
+    ? advert.images
+    : [];
+
+  for (const img of photosArr) {
+    const u = img?.url?.x2 ?? img?.url?.x1 ?? img?.url ?? img?.x2 ?? img?.x1;
+    if (typeof u === 'string') out.push(u);
+  }
+
+  // Fallback: advert.photos[]
+  if (out.length === 0) {
+    for (const p of advert?.photos ?? []) {
+      const u = p?.url?.x2 ?? p?.url?.x1 ?? p?.url ?? p?.x2 ?? p?.x1;
+      if (typeof u === 'string') out.push(u);
+    }
+  }
+  return out;
+}
+
 export async function fetchOtomotoPhotos(url: string): Promise<string[]> {
   try {
     const html = await politeFetch(url);
@@ -177,22 +202,29 @@ export async function fetchOtomotoPhotos(url: string): Promise<string[]> {
     const nd = $('script#__NEXT_DATA__').html();
     if (!nd) return [];
     const data = JSON.parse(nd);
-    const advert = data?.props?.pageProps?.advert;
-    if (!advert) return [];
 
-    // Próbuj kilku możliwych ścieżek do zdjęć
-    const candidates: string[] = [];
-    for (const img of advert.images ?? []) {
-      const u = img?.url ?? img?.x2 ?? img?.x1;
-      if (u) candidates.push(u);
+    // Wariant 1: pageProps.advert (stara struktura)
+    const directAdvert = data?.props?.pageProps?.advert;
+    if (directAdvert) {
+      const photos = extractPhotosFromAdvert(directAdvert);
+      if (photos.length > 0) return photos;
     }
-    if (candidates.length === 0) {
-      for (const p of advert.photos ?? []) {
-        const u = p?.url?.x2 ?? p?.url?.x1 ?? p?.url ?? p?.x2 ?? p?.x1;
-        if (u) candidates.push(u);
+
+    // Wariant 2: urqlState (nowa struktura — tak samo jak na listingach)
+    const urqlState: Record<string, { data: string }> =
+      data?.props?.pageProps?.urqlState ?? {};
+    for (const key of Object.keys(urqlState)) {
+      let parsed: any;
+      try { parsed = JSON.parse(urqlState[key]?.data ?? '{}'); } catch { continue; }
+
+      // Szukaj advert na dowolnym kluczu pierwszego poziomu
+      for (const val of Object.values(parsed ?? {})) {
+        const photos = extractPhotosFromAdvert(val);
+        if (photos.length > 0) return photos;
       }
     }
-    return candidates;
+
+    return [];
   } catch {
     return [];
   }

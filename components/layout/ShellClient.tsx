@@ -2,6 +2,7 @@
 
 import styled from 'styled-components';
 import { Sidebar } from './Sidebar';
+import { BottomNav } from './BottomNav';
 
 const Layout = styled.div`
   display: flex;
@@ -15,6 +16,11 @@ const Main = styled.main`
 
   @media (max-width: 880px) {
     margin-left: 76px;
+  }
+
+  @media (max-width: 640px) {
+    margin-left: 0;
+    padding-bottom: 68px;
   }
 `;
 
@@ -31,6 +37,7 @@ export function ShellClient({
     <Layout>
       <Sidebar scraperMode={scraperMode} user={user} />
       <Main>{children}</Main>
+      <BottomNav />
     </Layout>
   );
 }

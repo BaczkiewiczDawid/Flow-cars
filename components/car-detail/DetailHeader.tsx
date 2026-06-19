@@ -22,6 +22,10 @@ const BackLink = styled(Link)`
 const Title = styled.h1`
   font-size: 26px;
   margin-bottom: 4px;
+
+  @media (max-width: 640px) {
+    font-size: 20px;
+  }
 `;
 
 const Meta = styled.p`

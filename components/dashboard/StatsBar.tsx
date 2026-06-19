@@ -13,6 +13,10 @@ const Bar = styled.div`
   @media (max-width: 880px) {
     grid-template-columns: repeat(2, 1fr);
   }
+
+  @media (max-width: 400px) {
+    grid-template-columns: 1fr;
+  }
 `;
 
 const Tile = styled.div`
