@@ -138,6 +138,21 @@ const NavItem = styled.div<{ $active?: boolean }>`
 
 const Spacer = styled.div`flex: 1;`;
 
+const AlertBadge = styled.span`
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: ${({ theme }) => theme.colors.danger};
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  display: grid;
+  place-items: center;
+  line-height: 1;
+  margin-left: auto;
+`;
+
 const LogoutItem = styled.div`
   display: flex;
   align-items: center;
@@ -168,7 +183,7 @@ const nav = [
   { label: 'Ustawienia', href: '/settings', icon: Settings },
 ];
 
-export function BottomNav() {
+export function BottomNav({ docAlertCount }: { docAlertCount: number }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
@@ -207,6 +222,9 @@ export function BottomNav() {
             <NavItem $active={isActive(href)}>
               <Icon size={18} />
               {label}
+              {href === '/documents' && docAlertCount > 0 && (
+                <AlertBadge>{docAlertCount}</AlertBadge>
+              )}
             </NavItem>
           </Link>
         ))}

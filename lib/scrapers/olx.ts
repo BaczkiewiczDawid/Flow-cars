@@ -136,13 +136,16 @@ async function searchLive(
   onListingFetched?: () => void
 ): Promise<ScrapedListingDraft[]> {
   const target = criteria.maxListings ?? MAX_LISTINGS_DEFAULT;
+  const maxPages = criteria.maxPages ?? 5;
   const dealerThreshold = criteria.dealerListingThreshold ?? getSettings().dealerListingThreshold;
 
   const pendingChecks = new Map<string, Promise<number>>();
   const all: ScrapedListingDraft[] = [];
   let offset = 0;
+  let page = 0;
 
-  while (true) {
+  while (page < maxPages) {
+    page++;
     const url = await buildApiUrl(criteria, offset);
     let json: any;
     try {
@@ -158,18 +161,15 @@ async function searchLive(
     for (const item of items) {
       const draft = mapListing(item);
       all.push(draft);
-      // kick off profile check immediately — overlaps with next page fetch
-      if (draft.sellerType === 'prywatny' && draft.sellerId && !pendingChecks.has(draft.sellerId)) {
+      // cap checks: each adds 300ms to the domain queue — checking more than 2×target is wasteful
+      if (pendingChecks.size < target * 2 && draft.sellerType === 'prywatny' && draft.sellerId && !pendingChecks.has(draft.sellerId)) {
         pendingChecks.set(draft.sellerId, getSellerCarCount(draft.sellerId));
       }
     }
 
-    const filteredCount = all.filter((l) => {
-      if (l.sellerType === 'firma') return false;
-      return !l.sellerId || !pendingChecks.has(l.sellerId);
-    }).length;
-
-    if (filteredCount >= target) break;
+    // count private sellers collected so far (some may still be profiled — that's OK)
+    const privateCount = all.filter((l) => l.sellerType === 'prywatny').length;
+    if (privateCount >= target) break;
     if (!json.links?.next || items.length < 50) break;
     offset += 50;
   }

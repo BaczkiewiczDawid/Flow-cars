@@ -159,6 +159,30 @@ const NavLabel = styled.span`
   }
 `;
 
+const AlertBadge = styled.span`
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: ${({ theme }) => theme.colors.danger};
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  display: grid;
+  place-items: center;
+  line-height: 1;
+
+  @media (max-width: 880px) {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    min-width: 14px;
+    height: 14px;
+    font-size: 9px;
+    padding: 0 3px;
+  }
+`;
+
 
 const Spacer = styled.div`
   flex: 1;
@@ -255,7 +279,7 @@ const mainNav: NavConfigItem[] = [
 ];
 
 
-export function Sidebar({ scraperMode, user }: { scraperMode: 'mock' | 'live'; user: { email: string; name?: string | null } }) {
+export function Sidebar({ scraperMode, user, docAlertCount }: { scraperMode: 'mock' | 'live'; user: { email: string; name?: string | null }; docAlertCount: number }) {
   const pathname = usePathname();
 
   const isItemActive = (href: string) =>
@@ -280,6 +304,9 @@ export function Sidebar({ scraperMode, user }: { scraperMode: 'mock' | 'live'; u
             <NavItem $active={isItemActive(item.href)}>
               <item.icon size={18} />
               <NavLabel>{item.label}</NavLabel>
+              {item.href === '/documents' && docAlertCount > 0 && (
+                <AlertBadge>{docAlertCount}</AlertBadge>
+              )}
             </NavItem>
           </Link>
         ))}

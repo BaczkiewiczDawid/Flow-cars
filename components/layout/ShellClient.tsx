@@ -28,16 +28,18 @@ export function ShellClient({
   children,
   scraperMode,
   user,
+  docAlertCount,
 }: {
   children: React.ReactNode;
   scraperMode: 'mock' | 'live';
   user: { email: string; name?: string | null };
+  docAlertCount: number;
 }) {
   return (
     <Layout>
-      <Sidebar scraperMode={scraperMode} user={user} />
+      <Sidebar scraperMode={scraperMode} user={user} docAlertCount={docAlertCount} />
       <Main>{children}</Main>
-      <BottomNav />
+      <BottomNav docAlertCount={docAlertCount} />
     </Layout>
   );
 }
