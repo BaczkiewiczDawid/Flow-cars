@@ -9,38 +9,6 @@ import { getSettings } from '../settings';
 
 const MAX_LISTINGS_DEFAULT = Number(process.env.SCRAPER_MAX_LISTINGS ?? '8');
 
-// ponytail: module-level cache, lives as long as the process
-const sellerCountCache = new Map<string, number>();
-
-async function getSellerCarCount(sellerId: string): Promise<number> {
-  if (sellerCountCache.has(sellerId)) return sellerCountCache.get(sellerId)!;
-  try {
-    const html = await politeFetch(
-      `https://www.otomoto.pl/osobowe/?search%5Bseller_id%5D=${sellerId}`
-    );
-    const $ = cheerio.load(html);
-    const nd = $('script#__NEXT_DATA__').html();
-    let count = 0;
-    if (nd) {
-      const urqlState: Record<string, { data: string }> =
-        JSON.parse(nd)?.props?.pageProps?.urqlState ?? {};
-      for (const key of Object.keys(urqlState)) {
-        let parsed: any;
-        try { parsed = JSON.parse(urqlState[key]?.data ?? '{}'); } catch { continue; }
-        if (parsed?.advertSearch?.totalCount != null) {
-          count = parsed.advertSearch.totalCount as number;
-          break;
-        }
-      }
-    }
-    sellerCountCache.set(sellerId, count);
-    return count;
-  } catch {
-    sellerCountCache.set(sellerId, 0);
-    return 0;
-  }
-}
-
 function buildSearchUrl(criteria: SearchCriteria, page: number): string {
   const citySlug = criteria.locationCity?.toLowerCase().replace(/\s+/g, '-') ?? '';
   let base: string;
@@ -121,9 +89,7 @@ async function searchLive(
 ): Promise<ScrapedListingDraft[]> {
   const maxPages = criteria.maxPages ?? 2;
   const target = criteria.maxListings ?? MAX_LISTINGS_DEFAULT;
-  const dealerThreshold = criteria.dealerListingThreshold ?? getSettings().dealerListingThreshold;
 
-  const pendingChecks = new Map<string, Promise<number>>();
   const all: ScrapedListingDraft[] = [];
 
   for (let page = 1; page <= maxPages; page++) {
@@ -157,36 +123,17 @@ async function searchLive(
       const draft = mapEdge(edge);
       if (!draft) continue;
       all.push(draft);
-      // kick off profile check immediately — overlaps with next page fetch
-      if (draft.sellerType === 'prywatny' && draft.sellerId && !pendingChecks.has(draft.sellerId)) {
-        pendingChecks.set(draft.sellerId, getSellerCarCount(draft.sellerId));
-      }
     }
 
-    const filteredCount = all.filter((l) => {
-      if (l.sellerType === 'firma') return false;
-      return !l.sellerId || !pendingChecks.has(l.sellerId);
-    }).length;
+    const filteredCount = all.filter((l) => l.sellerType !== 'firma').length;
 
     if (filteredCount >= target) break;
-  }
-
-  await Promise.allSettled([...pendingChecks.values()]);
-
-  const dealerIds = new Set(
-    [...pendingChecks.keys()].filter((id) => (sellerCountCache.get(id) ?? 0) >= dealerThreshold)
-  );
-  if (dealerIds.size > 0) {
-    console.log(`[otomoto] Odfiltrowano ${dealerIds.size} handlarzy podających się za prywatnych (próg: ${dealerThreshold} ogłoszeń)`);
   }
 
   const filtered: ScrapedListingDraft[] = [];
   for (const l of all) {
     if (filtered.length >= target) break;
-    if (!criteria.includeDealers) {
-      if (l.sellerType === 'firma') continue;
-      if (l.sellerId && dealerIds.has(l.sellerId)) continue;
-    }
+    if (!criteria.includeDealers && l.sellerType === 'firma') continue;
     filtered.push(l);
     onListingFetched?.();
   }
