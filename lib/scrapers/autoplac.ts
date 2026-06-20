@@ -3,6 +3,7 @@ import { CAR_CATALOG, generateListingsForEntry } from './catalog';
 import { normalizeFuelType, normalizeGearbox } from './parseHelpers';
 import { getScraperMode } from './mode';
 import { getSettings } from '../settings';
+import { DELAY_MS } from './httpClient';
 
 const MAX_LISTINGS_DEFAULT = Number(process.env.SCRAPER_MAX_LISTINGS ?? '8');
 const API = 'https://api.autoplac.pl/offers/search';
@@ -80,7 +81,7 @@ function parseItem(item: any): ScrapedListingDraft | null {
     offer.offerShareUrl ?? (offer.webUrl ? `${BASE_URL}${offer.webUrl}` : null);
   if (!url) return null;
 
-  const photos = (photoList as any[]).map((p) => p.url ?? p.miniatureUrl).filter(Boolean) as string[];
+  const photos = (photoList as any[]).map((p) => p.bigUrl ?? p.url ?? p.miniatureUrl).filter(Boolean) as string[];
 
   // kW → KM (PS); API gives enginePowerKW
   const enginePower = offer.enginePowerKW ? Math.round(offer.enginePowerKW * 1.3596) : undefined;
@@ -127,7 +128,7 @@ async function searchLive(
   const collectLimit = needsBrandFilter ? target * 12 : target * 3;
 
   for (let page = 1; page <= maxPages; page++) {
-    if (page > 1) await new Promise((r) => setTimeout(r, 600));
+    if (page > 1) await new Promise((r) => setTimeout(r, DELAY_MS));
 
     const params = await buildParams(criteria, page);
     let data: any;

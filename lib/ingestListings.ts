@@ -14,94 +14,116 @@ export interface IngestResult {
   updatedCount: number;
 }
 
-async function upsertListing(draft: ScrapedListingDraft, userId: string): Promise<'new' | 'updated'> {
-  const existing = await db
-    .select({ id: cars.id })
-    .from(cars)
-    .where(and(eq(cars.userId, userId), eq(cars.source, draft.source), eq(cars.externalId, draft.externalId)))
-    .limit(1);
-
-  const now = new Date();
-
-  if (existing.length > 0) {
-    await db
-      .update(cars)
-      .set({
-        title: draft.title,
-        price: draft.price,
-        mileage: draft.mileage,
-        description: draft.description,
-        equipmentJson: JSON.stringify(draft.equipment),
-        sellerName: draft.sellerName,
-        sellerPhone: draft.sellerPhone,
-        updatedAt: now,
-      })
-      .where(eq(cars.id, existing[0].id));
-    return 'updated';
-  }
-
-  if (draft.source === 'otomoto' && draft.url) {
-    const fullPhotos = await fetchOtomotoPhotos(draft.url);
-    if (fullPhotos.length > 0) {
-      draft.photos = fullPhotos;
-      draft.mainPhoto = fullPhotos[0];
+// ponytail: worker-pool concurrency — avoids flooding Supabase/site with unbounded Promise.all
+async function withConcurrency<T>(tasks: (() => Promise<T>)[], limit: number): Promise<T[]> {
+  const results: T[] = new Array(tasks.length);
+  let idx = 0;
+  async function worker() {
+    while (idx < tasks.length) {
+      const i = idx++;
+      results[i] = await tasks[i]();
     }
   }
-
-  await db.insert(cars).values({
-    source: draft.source,
-    externalId: draft.externalId,
-    url: draft.url,
-    title: draft.title,
-    brand: draft.brand,
-    model: draft.model,
-    generation: draft.generation,
-    productionYear: draft.productionYear,
-    engineCapacity: draft.engineCapacity,
-    enginePower: draft.enginePower,
-    fuelType: draft.fuelType,
-    gearbox: draft.gearbox,
-    bodyType: draft.bodyType,
-    color: draft.color,
-    mileage: draft.mileage,
-    price: draft.price,
-    currency: draft.currency,
-    voivodeship: draft.voivodeship,
-    city: draft.city,
-    description: draft.description,
-    equipmentJson: JSON.stringify(draft.equipment),
-    photosJson: JSON.stringify(draft.photos),
-    mainPhoto: draft.mainPhoto,
-    sellerName: draft.sellerName,
-    sellerPhone: draft.sellerPhone,
-    sellerType: draft.sellerType,
-    listedAt: draft.listedAt,
-    scrapedAt: now,
-    createdAt: now,
-    updatedAt: now,
-    userId,
-  });
-  return 'new';
+  await Promise.all(Array.from({ length: Math.min(limit, tasks.length) }, worker));
+  return results;
 }
 
 export async function ingestListings(
   drafts: ScrapedListingDraft[],
   userId: string
 ): Promise<IngestResult> {
-  let newCount = 0;
-  let updatedCount = 0;
+  if (drafts.length === 0) return { totalFound: 0, newCount: 0, updatedCount: 0 };
 
-  for (const draft of drafts) {
-    const result = await upsertListing(draft, userId);
-    if (result === 'new') newCount++;
-    else updatedCount++;
+  const now = new Date();
+
+  // 1. Single query to find all existing records for this user
+  const existing = await db
+    .select({ id: cars.id, source: cars.source, externalId: cars.externalId })
+    .from(cars)
+    .where(eq(cars.userId, userId));
+  const existingMap = new Map(existing.map((r) => [`${r.source}|${r.externalId}`, r.id]));
+
+  const newDrafts = drafts.filter((d) => !existingMap.has(`${d.source}|${d.externalId}`));
+  const updDrafts = drafts.filter((d) => existingMap.has(`${d.source}|${d.externalId}`));
+
+  // 2. Fetch otomoto photos for all new listings in parallel (5 concurrent)
+  const otomotoNew = newDrafts.filter((d) => d.source === 'otomoto' && d.url);
+  if (otomotoNew.length > 0) {
+    await withConcurrency(
+      otomotoNew.map((d) => async () => {
+        const photos = await fetchOtomotoPhotos(d.url!);
+        if (photos.length > 0) {
+          d.photos = photos;
+          d.mainPhoto = photos[0];
+        }
+      }),
+      2
+    );
   }
 
-  if (drafts.length > 0) {
-    await recalculateAllMarketStats();
+  // 3. Batch insert all new drafts in one query
+  if (newDrafts.length > 0) {
+    await db.insert(cars).values(
+      newDrafts.map((d) => ({
+        source: d.source,
+        externalId: d.externalId,
+        url: d.url,
+        title: d.title,
+        brand: d.brand,
+        model: d.model,
+        generation: d.generation,
+        productionYear: d.productionYear,
+        engineCapacity: d.engineCapacity,
+        enginePower: d.enginePower,
+        fuelType: d.fuelType,
+        gearbox: d.gearbox,
+        bodyType: d.bodyType,
+        color: d.color,
+        mileage: d.mileage,
+        price: d.price,
+        currency: d.currency,
+        voivodeship: d.voivodeship,
+        city: d.city,
+        description: d.description,
+        equipmentJson: JSON.stringify(d.equipment),
+        photosJson: JSON.stringify(d.photos),
+        mainPhoto: d.mainPhoto,
+        sellerName: d.sellerName,
+        sellerPhone: d.sellerPhone,
+        sellerType: d.sellerType,
+        listedAt: d.listedAt,
+        scrapedAt: now,
+        createdAt: now,
+        updatedAt: now,
+        userId,
+      }))
+    );
   }
 
-  return { totalFound: drafts.length, newCount, updatedCount };
+  // 4. Parallel update existing records
+  if (updDrafts.length > 0) {
+    await Promise.all(
+      updDrafts.map((d) =>
+        db
+          .update(cars)
+          .set({
+            title: d.title,
+            price: d.price,
+            mileage: d.mileage,
+            description: d.description,
+            equipmentJson: JSON.stringify(d.equipment),
+            sellerName: d.sellerName,
+            sellerPhone: d.sellerPhone,
+            updatedAt: now,
+          })
+          .where(eq(cars.id, existingMap.get(`${d.source}|${d.externalId}`)!))
+      )
+    );
+  }
+
+  await recalculateAllMarketStats();
+
+  return { totalFound: drafts.length, newCount: newDrafts.length, updatedCount: updDrafts.length };
 }
 
 export async function runScrapeAndIngest(
@@ -120,7 +142,7 @@ export async function runScrapeAndIngest(
     maxPages: Math.ceil(listingsPerPortal / 15) + 2,
     ...criteria,
   };
-  const total = (effectiveCriteria.maxListings ?? listingsPerPortal) * 2;
+  const total = (effectiveCriteria.maxListings ?? listingsPerPortal) * 3;
   let done = 0;
   const onListingFetched = onProgress
     ? () => { onProgress(++done, total); }

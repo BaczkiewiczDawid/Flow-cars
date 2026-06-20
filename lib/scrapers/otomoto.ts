@@ -170,6 +170,11 @@ async function searchMock(criteria: SearchCriteria): Promise<ScrapedListingDraft
   return criteria.priceMax ? listings.filter((l) => l.price <= criteria.priceMax!) : listings;
 }
 
+function upscaleUrl(u: unknown): string | null {
+  if (typeof u !== 'string') return null;
+  return u.replace(/;s=\d+x\d+/, ';s=1920x1440');
+}
+
 function extractPhotosFromAdvert(advert: any): string[] {
   const out: string[] = [];
 
@@ -181,15 +186,15 @@ function extractPhotosFromAdvert(advert: any): string[] {
     : [];
 
   for (const img of photosArr) {
-    const u = img?.url?.x2 ?? img?.url?.x1 ?? img?.url ?? img?.x2 ?? img?.x1;
-    if (typeof u === 'string') out.push(u);
+    const u = upscaleUrl(img?.url?.x2 ?? img?.url?.x1 ?? img?.url ?? img?.x2 ?? img?.x1);
+    if (u) out.push(u);
   }
 
   // Fallback: advert.photos[]
   if (out.length === 0) {
     for (const p of advert?.photos ?? []) {
-      const u = p?.url?.x2 ?? p?.url?.x1 ?? p?.url ?? p?.x2 ?? p?.x1;
-      if (typeof u === 'string') out.push(u);
+      const u = upscaleUrl(p?.url?.x2 ?? p?.url?.x1 ?? p?.url ?? p?.x2 ?? p?.x1);
+      if (u) out.push(u);
     }
   }
   return out;

@@ -82,6 +82,10 @@ function parseEdges(html: string): MarketListing[] {
     .filter((v) => v.price > 0 && v.year > 0);
 }
 
+// ponytail: 5-min in-process cache — market prices don't change between scrape runs
+const marketCache = new Map<string, { listings: MarketListing[]; ts: number }>();
+const CACHE_TTL_MS = 5 * 60 * 1000;
+
 async function fetchOtomotoMarketListings(
   brand: string,
   model: string,
@@ -92,18 +96,23 @@ async function fetchOtomotoMarketListings(
   if (yearRange?.from) parts.push(`search[filter_float_year:from]=${yearRange.from}`);
   if (yearRange?.to) parts.push(`search[filter_float_year:to]=${yearRange.to}`);
   const qs = parts.join('&');
-  const all: MarketListing[] = [];
+  const cacheKey = `${brand}|${model}|${qs}`;
 
-  for (let page = 1; page <= 2; page++) {
-    const url = page === 1 ? `${base}?${qs}` : `${base}?${qs}&page=${page}`;
-    try {
-      const listings = parseEdges(await parallelFetch(url));
-      if (listings.length === 0) break;
-      all.push(...listings);
-    } catch { break; }
-  }
+  const cached = marketCache.get(cacheKey);
+  if (cached && Date.now() - cached.ts < CACHE_TTL_MS) return cached.listings;
 
-  return all;
+  // Fetch both pages in parallel — sequential was doubling per-pair time
+  const [r1, r2] = await Promise.allSettled([
+    parallelFetch(`${base}?${qs}`),
+    parallelFetch(`${base}?${qs}&page=2`),
+  ]);
+  const listings = [
+    ...(r1.status === 'fulfilled' ? parseEdges(r1.value) : []),
+    ...(r2.status === 'fulfilled' ? parseEdges(r2.value) : []),
+  ];
+
+  marketCache.set(cacheKey, { listings, ts: Date.now() });
+  return listings;
 }
 
 function findComparable(
@@ -164,63 +173,60 @@ export async function recalculateAllMarketStats(): Promise<void> {
     groups.get(key)!.push(car);
   }
 
-  // Pobierz dane rynkowe dla wszystkich par równolegle
   const entries = Array.from(groups.entries());
-  console.log(`[market] Pobieranie danych dla ${entries.length} par marka/model równolegle…`);
+  console.log(`[market] Pobieranie danych dla ${entries.length} par marka/model…`);
 
   const s = getSettings();
+  const marketMap = new Map<string, MarketListing[]>();
 
-  const marketResults = await Promise.allSettled(
-    entries.map(([key, group]) => {
+  // ponytail: concurrency 4 — unlimited hits Cloudflare bot-protection on otomoto
+  let qi = 0;
+  async function marketWorker() {
+    while (qi < entries.length) {
+      const [key, group] = entries[qi++];
       const [brand, model] = key.split('|');
       const years = group.map((c) => c.productionYear).filter((y) => y > 0);
       const yearRange = years.length > 0
         ? { from: Math.min(...years) - s.yearTolerance, to: Math.max(...years) + s.yearTolerance }
         : undefined;
-      return fetchOtomotoMarketListings(brand, model, yearRange).then((listings) => ({ key, listings }));
+      try {
+        const listings = await fetchOtomotoMarketListings(brand, model, yearRange);
+        marketMap.set(key, listings);
+      } catch { /* skip pair on error */ }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(4, entries.length) }, marketWorker));
+
+  const updatedAt = new Date();
+  await Promise.all(
+    Array.from(groups.entries()).flatMap(([key, group]) => {
+      const marketListings = marketMap.get(key) ?? [];
+      const [brand, model] = key.split('|');
+      console.log(`[market] ${brand} ${model} — próbka: ${marketListings.length}`);
+
+      return group.map((car) => {
+        let comparable = findComparable(marketListings, car, s.requireFuelMatch, s);
+        if (comparable.length < 3) comparable = findComparable(marketListings, car, false, s);
+
+        let estimatedMarketPrice: number | null = null;
+        let priceDeviationPercent: number | null = null;
+        let isUnderpriced = false;
+
+        if (comparable.length > 0) {
+          const prices = trimOutliers(comparable.map((c) => c.price));
+          estimatedMarketPrice = Math.round(median(prices));
+          const dev = deviationFromMarket(car.price, estimatedMarketPrice, s.underpricedThresholdPercent);
+          priceDeviationPercent = Math.round(dev.priceDeviationPercent * 10) / 10;
+          isUnderpriced = dev.isUnderpriced;
+        }
+
+        return db
+          .update(cars)
+          .set({ estimatedMarketPrice, priceDeviationPercent, comparableSampleSize: comparable.length, isUnderpriced, updatedAt })
+          .where(eq(cars.id, car.id));
+      });
     })
   );
-
-  const marketMap = new Map<string, MarketListing[]>();
-  for (const result of marketResults) {
-    if (result.status === 'fulfilled') {
-      marketMap.set(result.value.key, result.value.listings);
-    }
-  }
-
-  for (const [key, group] of groups) {
-    const marketListings = marketMap.get(key) ?? [];
-    const [brand, model] = key.split('|');
-    console.log(`[market] ${brand} ${model} — próbka: ${marketListings.length}`);
-
-    for (const car of group) {
-      let comparable = findComparable(marketListings, car, s.requireFuelMatch, s);
-      if (comparable.length < 3) comparable = findComparable(marketListings, car, false, s);
-
-      let estimatedMarketPrice: number | null = null;
-      let priceDeviationPercent: number | null = null;
-      let isUnderpriced = false;
-
-      if (comparable.length > 0) {
-        const prices = trimOutliers(comparable.map((c) => c.price));
-        estimatedMarketPrice = Math.round(median(prices));
-        const dev = deviationFromMarket(car.price, estimatedMarketPrice, s.underpricedThresholdPercent);
-        priceDeviationPercent = Math.round(dev.priceDeviationPercent * 10) / 10;
-        isUnderpriced = dev.isUnderpriced;
-      }
-
-      await db
-        .update(cars)
-        .set({
-          estimatedMarketPrice,
-          priceDeviationPercent,
-          comparableSampleSize: comparable.length,
-          isUnderpriced,
-          updatedAt: new Date(),
-        })
-        .where(eq(cars.id, car.id));
-    }
-  }
 }
 
 export async function estimateMarketPrice(

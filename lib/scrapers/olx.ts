@@ -80,7 +80,7 @@ function mapListing(item: any): ScrapedListingDraft {
   const params: any[] = item.params ?? [];
   const price = (params.find((p: any) => p.key === 'price')?.value?.value as number | undefined) ?? 0;
   const photos: string[] = ((item.photos ?? []) as any[])
-    .map((ph: any) => (ph.link as string).replace('{width}x{height}', '800x600'))
+    .map((ph: any) => (ph.link as string).replace('{width}x{height}', '1920x1440'))
     .slice(0, 24);
 
   const model = (params.find((p: any) => p.key === 'model')?.value?.label as string | undefined) ?? '';

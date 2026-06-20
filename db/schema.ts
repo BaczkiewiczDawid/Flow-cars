@@ -130,3 +130,15 @@ export const ownedCars = pgTable('owned_cars', {
 
 export type OwnedCar = typeof ownedCars.$inferSelect;
 export type NewOwnedCar = typeof ownedCars.$inferInsert;
+
+export const carCosts = pgTable('car_costs', {
+  id: serial('id').primaryKey(),
+  ownedCarId: integer('owned_car_id').notNull().references(() => ownedCars.id, { onDelete: 'cascade' }),
+  description: text('description').notNull(),
+  amount: integer('amount').notNull(),
+  date: timestamp('date', { mode: 'date' }),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull(),
+  userId: uuid('user_id').references(() => users.id),
+});
+
+export type CarCost = typeof carCosts.$inferSelect;

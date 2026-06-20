@@ -1,6 +1,6 @@
-const DELAY_MS = Number(process.env.SCRAPER_DELAY_MS ?? '800');
-
-let lastRequestAt = 0;
+// ponytail: per-domain throttle so otomoto/olx don't queue behind each other
+export const DELAY_MS = Number(process.env.SCRAPER_DELAY_MS ?? '300');
+const lastRequestByDomain = new Map<string, number>();
 
 const BROWSER_HEADERS = {
   'User-Agent':
@@ -27,12 +27,14 @@ export async function parallelFetch(url: string): Promise<string> {
  *   żeby nie zarzucać serwisu requestami i zmniejszyć ryzyko zablokowania IP.
  */
 export async function politeFetch(url: string): Promise<string> {
+  const domain = (() => { try { return new URL(url).hostname; } catch { return url; } })();
   const now = Date.now();
-  const wait = Math.max(0, lastRequestAt + DELAY_MS - now);
-  if (wait > 0) {
-    await new Promise((resolve) => setTimeout(resolve, wait));
-  }
-  lastRequestAt = Date.now();
+  const last = lastRequestByDomain.get(domain) ?? 0;
+  // Reserve the slot BEFORE awaiting so concurrent callers each get a unique fireAt
+  const fireAt = Math.max(now, last + DELAY_MS);
+  lastRequestByDomain.set(domain, fireAt);
+  const wait = fireAt - now;
+  if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
 
   const response = await fetch(url, { headers: BROWSER_HEADERS });
 
