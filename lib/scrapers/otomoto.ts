@@ -9,6 +9,38 @@ import { getSettings } from '../settings';
 
 const MAX_LISTINGS_DEFAULT = Number(process.env.SCRAPER_MAX_LISTINGS ?? '8');
 
+// ponytail: module-level cache, lives as long as the process
+const sellerCountCache = new Map<string, number>();
+
+async function getSellerCarCount(sellerId: string): Promise<number> {
+  if (sellerCountCache.has(sellerId)) return sellerCountCache.get(sellerId)!;
+  try {
+    const html = await politeFetch(
+      `https://www.otomoto.pl/osobowe/?search%5Bseller_id%5D=${sellerId}`
+    );
+    const $ = cheerio.load(html);
+    const nd = $('script#__NEXT_DATA__').html();
+    let count = 0;
+    if (nd) {
+      const urqlState: Record<string, { data: string }> =
+        JSON.parse(nd)?.props?.pageProps?.urqlState ?? {};
+      for (const key of Object.keys(urqlState)) {
+        let parsed: any;
+        try { parsed = JSON.parse(urqlState[key]?.data ?? '{}'); } catch { continue; }
+        if (parsed?.advertSearch?.totalCount != null) {
+          count = parsed.advertSearch.totalCount as number;
+          break;
+        }
+      }
+    }
+    sellerCountCache.set(sellerId, count);
+    return count;
+  } catch {
+    sellerCountCache.set(sellerId, 0);
+    return 0;
+  }
+}
+
 function buildSearchUrl(criteria: SearchCriteria, page: number): string {
   const citySlug = criteria.locationCity?.toLowerCase().replace(/\s+/g, '-') ?? '';
   let base: string;
@@ -138,13 +170,25 @@ async function searchLive(
     if (filteredCount >= target) break;
   }
 
+  // verify private sellers against their actual Otomoto profile listing count
+  const privateSellerIds = [...new Set(
+    all.filter((l) => l.sellerType === 'prywatny' && l.sellerId).map((l) => l.sellerId!)
+  )];
+  await Promise.allSettled(privateSellerIds.map((id) => getSellerCarCount(id)));
+
+  const dealerIds = new Set(
+    privateSellerIds.filter((id) => (sellerCountCache.get(id) ?? 0) >= dealerThreshold)
+  );
+  if (dealerIds.size > 0) {
+    console.log(`[otomoto] Odfiltrowano ${dealerIds.size} handlarzy podających się za prywatnych (próg: ${dealerThreshold} ogłoszeń)`);
+  }
+
   const filtered: ScrapedListingDraft[] = [];
   for (const l of all) {
     if (filtered.length >= target) break;
     if (!criteria.includeDealers) {
       if (l.sellerType === 'firma') continue;
-      const sid = l.sellerId ?? l.sellerName;
-      if (sid && (sellerCounts.get(sid) ?? 0) >= dealerThreshold) continue;
+      if (l.sellerId && dealerIds.has(l.sellerId)) continue;
     }
     filtered.push(l);
     onListingFetched?.();
