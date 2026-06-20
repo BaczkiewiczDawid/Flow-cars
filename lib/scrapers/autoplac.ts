@@ -147,6 +147,7 @@ async function searchLive(
 
   const all: ScrapedListingDraft[] = [];
   const seenIds = new Set<string>();
+  const pendingChecks = new Map<string, Promise<number>>();
   // API doesn't filter by brand/model — collect more pages to compensate for client-side filtering
   const needsBrandFilter = !!(criteria.brand || criteria.model);
   const collectLimit = needsBrandFilter ? target * 12 : target * 3;
@@ -176,6 +177,10 @@ async function searchLive(
       if (!draft || seenIds.has(draft.externalId)) continue;
       seenIds.add(draft.externalId);
       all.push(draft);
+      // kick off profile check immediately — overlaps with next page fetch
+      if (draft.sellerType === 'prywatny' && draft.sellerId && !pendingChecks.has(draft.sellerId)) {
+        pendingChecks.set(draft.sellerId, getSellerCarCount(draft.sellerId));
+      }
     }
 
     if (all.length >= collectLimit) break;
@@ -190,14 +195,10 @@ async function searchLive(
     return true;
   });
 
-  // verify private sellers against their actual Autoplac listing count
-  const privateSellerIds = [...new Set(
-    pool.filter((l) => l.sellerType === 'prywatny' && l.sellerId).map((l) => l.sellerId!)
-  )];
-  await Promise.allSettled(privateSellerIds.map((id) => getSellerCarCount(id)));
+  await Promise.allSettled([...pendingChecks.values()]);
 
   const dealerIds = new Set(
-    privateSellerIds.filter((id) => (sellerCountCache.get(id) ?? 0) >= dealerThreshold)
+    [...pendingChecks.keys()].filter((id) => (sellerCountCache.get(id) ?? 0) >= dealerThreshold)
   );
   if (dealerIds.size > 0) {
     console.log(`[autoplac] Odfiltrowano ${dealerIds.size} handlarzy podających się za prywatnych (próg: ${dealerThreshold} ogłoszeń)`);

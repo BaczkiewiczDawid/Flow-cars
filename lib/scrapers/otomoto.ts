@@ -123,7 +123,7 @@ async function searchLive(
   const target = criteria.maxListings ?? MAX_LISTINGS_DEFAULT;
   const dealerThreshold = criteria.dealerListingThreshold ?? getSettings().dealerListingThreshold;
 
-  const sellerCounts = new Map<string, number>();
+  const pendingChecks = new Map<string, Promise<number>>();
   const all: ScrapedListingDraft[] = [];
 
   for (let page = 1; page <= maxPages; page++) {
@@ -157,27 +157,24 @@ async function searchLive(
       const draft = mapEdge(edge);
       if (!draft) continue;
       all.push(draft);
-      const sid = draft.sellerId ?? draft.sellerName;
-      if (sid) sellerCounts.set(sid, (sellerCounts.get(sid) ?? 0) + 1);
+      // kick off profile check immediately — overlaps with next page fetch
+      if (draft.sellerType === 'prywatny' && draft.sellerId && !pendingChecks.has(draft.sellerId)) {
+        pendingChecks.set(draft.sellerId, getSellerCarCount(draft.sellerId));
+      }
     }
 
     const filteredCount = all.filter((l) => {
       if (l.sellerType === 'firma') return false;
-      const sid = l.sellerId ?? l.sellerName;
-      return !sid || (sellerCounts.get(sid) ?? 0) < dealerThreshold;
+      return !l.sellerId || !pendingChecks.has(l.sellerId);
     }).length;
 
     if (filteredCount >= target) break;
   }
 
-  // verify private sellers against their actual Otomoto profile listing count
-  const privateSellerIds = [...new Set(
-    all.filter((l) => l.sellerType === 'prywatny' && l.sellerId).map((l) => l.sellerId!)
-  )];
-  await Promise.allSettled(privateSellerIds.map((id) => getSellerCarCount(id)));
+  await Promise.allSettled([...pendingChecks.values()]);
 
   const dealerIds = new Set(
-    privateSellerIds.filter((id) => (sellerCountCache.get(id) ?? 0) >= dealerThreshold)
+    [...pendingChecks.keys()].filter((id) => (sellerCountCache.get(id) ?? 0) >= dealerThreshold)
   );
   if (dealerIds.size > 0) {
     console.log(`[otomoto] Odfiltrowano ${dealerIds.size} handlarzy podających się za prywatnych (próg: ${dealerThreshold} ogłoszeń)`);
