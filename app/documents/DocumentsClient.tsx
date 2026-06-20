@@ -77,7 +77,7 @@ const Table = styled.table`
   font-size: 13.5px;
 `;
 
-const Th = styled.th`
+const Th = styled.th<{ $sortable?: boolean }>`
   padding: 11px 14px;
   text-align: left;
   font-size: 11.5px;
@@ -87,6 +87,9 @@ const Th = styled.th`
   color: ${({ theme }) => theme.colors.inkFaint};
   border-bottom: 1px solid ${({ theme }) => theme.colors.border};
   white-space: nowrap;
+  cursor: ${({ $sortable }) => ($sortable ? 'pointer' : 'default')};
+  user-select: ${({ $sortable }) => ($sortable ? 'none' : 'auto')};
+  &:hover { color: ${({ $sortable, theme }) => $sortable ? theme.colors.ink : theme.colors.inkFaint}; }
 `;
 
 const Td = styled.td`
@@ -286,6 +289,13 @@ const CancelBtn = styled.button`
   &:hover { background: ${({ theme }) => theme.colors.bgSoft}; }
 `;
 
+type SortCol = 'insurance' | 'inspection' | 'reregistration';
+
+// nulls sort last regardless of direction
+function dateMs(d: Date | string | null | undefined): number {
+  return d ? new Date(d).getTime() : Infinity;
+}
+
 // ─── types ────────────────────────────────────────────────────────────────────
 
 interface DocForm {
@@ -308,11 +318,27 @@ export function DocumentsClient({
   const [editing, setEditing] = useState<OwnedCar | null>(null);
   const [form, setForm] = useState<DocForm>({ insuranceExpiresAt: '', inspectionExpiresAt: '', reregisteredAt: '', reregistered: false });
   const [saving, setSaving] = useState(false);
+  const [sort, setSort] = useState<{ col: SortCol; dir: 'asc' | 'desc' }>({ col: 'reregistration', dir: 'asc' });
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  const active = cars.filter((c) => c.status !== 'sprzedany');
+  function toggleSort(col: SortCol) {
+    setSort((s) => s.col === col ? { col, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { col, dir: 'asc' });
+  }
+  function ind(col: SortCol) { return sort.col !== col ? ' ↕' : sort.dir === 'asc' ? ' ↑' : ' ↓'; }
+
+  const active = cars
+    .filter((c) => c.status !== 'sprzedany')
+    .sort((a, b) => {
+      const dir = sort.dir === 'asc' ? 1 : -1;
+      if (sort.col === 'insurance') return dir * (dateMs(a.insuranceExpiresAt) - dateMs(b.insuranceExpiresAt));
+      if (sort.col === 'inspection') return dir * (dateMs(a.inspectionExpiresAt) - dateMs(b.inspectionExpiresAt));
+      // reregistration: sort by deadline (done cars always last)
+      const da = a.reregisteredAt ? Infinity : dateMs(reregDeadline(a, reregistrationDays));
+      const db2 = b.reregisteredAt ? Infinity : dateMs(reregDeadline(b, reregistrationDays));
+      return dir * (da - db2);
+    });
 
   function openEdit(car: OwnedCar) {
     setEditing(car);
@@ -371,9 +397,9 @@ export function DocumentsClient({
             <thead>
               <tr>
                 <Th>Pojazd</Th>
-                <Th><ShieldCheck size={13} style={{ display: 'inline', marginRight: 5, verticalAlign: 'middle' }} />Ubezpieczenie</Th>
-                <Th><Wrench size={13} style={{ display: 'inline', marginRight: 5, verticalAlign: 'middle' }} />Przegląd techniczny</Th>
-                <Th><FileCheck size={13} style={{ display: 'inline', marginRight: 5, verticalAlign: 'middle' }} />Rejestracja ({reregistrationDays} dni)</Th>
+                <Th $sortable onClick={() => toggleSort('insurance')}><ShieldCheck size={13} style={{ display: 'inline', marginRight: 5, verticalAlign: 'middle' }} />Ubezpieczenie{ind('insurance')}</Th>
+                <Th $sortable onClick={() => toggleSort('inspection')}><Wrench size={13} style={{ display: 'inline', marginRight: 5, verticalAlign: 'middle' }} />Przegląd techniczny{ind('inspection')}</Th>
+                <Th $sortable onClick={() => toggleSort('reregistration')}><FileCheck size={13} style={{ display: 'inline', marginRight: 5, verticalAlign: 'middle' }} />Rejestracja ({reregistrationDays} dni){ind('reregistration')}</Th>
                 <Th />
               </tr>
             </thead>
