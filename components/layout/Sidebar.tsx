@@ -12,6 +12,7 @@ import {
   GitCompareArrows,
   Car,
   LogOut,
+  FileCheck,
 } from 'lucide-react';
 import { logout } from '@/app/actions/logout';
 
@@ -247,6 +248,7 @@ const mainNav: NavConfigItem[] = [
   { label: 'Dashboard', href: '/', icon: LayoutDashboard },
   { label: 'Porównaj ofertę', href: '/compare', icon: GitCompareArrows },
   { label: 'Posiadane', href: '/owned', icon: Car },
+  { label: 'Dokumenty', href: '/documents', icon: FileCheck },
   { label: 'Ulubione', href: '/ulubione', icon: Heart },
   { label: 'Statystyki', href: '/statystyki', icon: BarChart3 },
   { label: 'Ustawienia', href: '/settings', icon: Settings },

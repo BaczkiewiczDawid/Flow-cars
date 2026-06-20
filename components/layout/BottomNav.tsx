@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 import styled from 'styled-components';
 import {
   LayoutDashboard, Heart, BarChart3, Settings,
-  GitCompareArrows, Car, Menu, X, Radar, LogOut,
+  GitCompareArrows, Car, Menu, X, Radar, LogOut, FileCheck,
 } from 'lucide-react';
 import { logout } from '@/app/actions/logout';
 
@@ -162,6 +162,7 @@ const nav = [
   { label: 'Dashboard', href: '/', icon: LayoutDashboard },
   { label: 'Porównaj ofertę', href: '/compare', icon: GitCompareArrows },
   { label: 'Posiadane', href: '/owned', icon: Car },
+  { label: 'Dokumenty', href: '/documents', icon: FileCheck },
   { label: 'Ulubione', href: '/ulubione', icon: Heart },
   { label: 'Statystyki', href: '/statystyki', icon: BarChart3 },
   { label: 'Ustawienia', href: '/settings', icon: Settings },

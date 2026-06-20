@@ -13,6 +13,7 @@ export interface AppSettings {
   locationRadiusKm: number;
   priceMin: number;
   priceMax: number;
+  reregistrationDays: number;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -27,6 +28,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   locationRadiusKm: 30,
   priceMin: 0,
   priceMax: 0,
+  reregistrationDays: 30,
 };
 
 function settingsPath(userId?: string) {

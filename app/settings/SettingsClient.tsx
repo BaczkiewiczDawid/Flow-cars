@@ -17,6 +17,7 @@ const DEFAULT: AppSettings = {
   locationRadiusKm: 30,
   priceMin: 0,
   priceMax: 0,
+  reregistrationDays: 30,
 };
 
 // ─── layout ───────────────────────────────────────────────────────────────────
@@ -477,6 +478,26 @@ export function SettingsClient() {
               onChange={num('dealerListingThreshold')}
             />
             <Unit>ofert</Unit>
+          </InputWrap>
+        </Row>
+      </Card>
+
+      <Card>
+        <SectionTitle>Dokumenty pojazdów</SectionTitle>
+        <Row>
+          <Label>
+            <LabelText>Termin przerejestrowania</LabelText>
+            <LabelHint>Czas na przerejestrowanie zakupionego pojazdu — 30 dni dla osób prywatnych, 90 dni dla firm</LabelHint>
+          </Label>
+          <InputWrap>
+            <NumberInput
+              type="number"
+              min={1}
+              max={180}
+              value={settings.reregistrationDays}
+              onChange={num('reregistrationDays')}
+            />
+            <Unit>dni</Unit>
           </InputWrap>
         </Row>
       </Card>
