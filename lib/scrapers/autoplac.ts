@@ -21,11 +21,7 @@ async function getSellerCarCount(userId: string): Promise<number> {
     if (!res.ok) { sellerCountCache.set(userId, 0); return 0; }
     const data: any = await res.json();
     // totalCount / totalElements / totalPages*perPage are common pagination shapes
-    const count: number =
-      data?.totalCount ??
-      data?.totalElements ??
-      data?.pagination?.total ??
-      (data?.offerList?.length ?? 0);
+    const count: number = (data?.offerCount as number | undefined) ?? 0;
     sellerCountCache.set(userId, count);
     return count;
   } catch {
