@@ -26,7 +26,7 @@ function buildSearchUrl(criteria: SearchCriteria, page: number): string {
   ];
   if (criteria.priceMin) parts.push(`search[filter_float_price:from]=${criteria.priceMin}`);
   if (criteria.priceMax) parts.push(`search[filter_float_price:to]=${criteria.priceMax}`);
-  if (criteria.locationRadiusKm) parts.push(`search[filter_float_radius:to]=${criteria.locationRadiusKm}`);
+  if (criteria.locationRadiusKm) parts.push(`search[dist]=${criteria.locationRadiusKm}`);
   if (criteria.yearMin) parts.push(`search[filter_float_year:from]=${criteria.yearMin}`);
   if (criteria.yearMax) parts.push(`search[filter_float_year:to]=${criteria.yearMax}`);
   if (page > 1) parts.push(`page=${page}`);

@@ -105,6 +105,23 @@ const TextInput = styled.input`
   }
 `;
 
+const SelectInput = styled.select`
+  padding: 8px 12px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: ${({ theme }) => theme.radius.sm};
+  font-size: 14px;
+  font-family: ${({ theme }) => theme.font.mono};
+  color: ${({ theme }) => theme.colors.ink};
+  background: ${({ theme }) => theme.colors.bgSoft};
+  outline: none;
+  cursor: pointer;
+
+  &:focus {
+    border-color: ${({ theme }) => theme.colors.accent};
+    background: ${({ theme }) => theme.colors.accentSofter};
+  }
+`;
+
 const NumberInput = styled.input`
   width: 100px;
   padding: 8px 12px;
@@ -487,17 +504,16 @@ export function SettingsClient() {
         <Row>
           <Label>
             <LabelText>Termin przerejestrowania</LabelText>
-            <LabelHint>Czas na przerejestrowanie zakupionego pojazdu — 30 dni dla osób prywatnych, 90 dni dla firm</LabelHint>
+            <LabelHint>Czas na przerejestrowanie zakupionego pojazdu</LabelHint>
           </Label>
           <InputWrap>
-            <NumberInput
-              type="number"
-              min={1}
-              max={180}
+            <SelectInput
               value={settings.reregistrationDays}
-              onChange={num('reregistrationDays')}
-            />
-            <Unit>dni</Unit>
+              onChange={(e) => setSettings((s) => ({ ...s, reregistrationDays: Number(e.target.value) }))}
+            >
+              <option value={30}>30 dni</option>
+              <option value={90}>90 dni</option>
+            </SelectInput>
           </InputWrap>
         </Row>
       </Card>
