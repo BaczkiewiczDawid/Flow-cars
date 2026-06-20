@@ -1,3 +1,10 @@
+export function slugifyCity(city: string): string {
+  return city.trim().toLowerCase()
+    .replace(/ą/g, 'a').replace(/ć/g, 'c').replace(/ę/g, 'e').replace(/ł/g, 'l')
+    .replace(/ń/g, 'n').replace(/ó/g, 'o').replace(/ś/g, 's').replace(/ź/g, 'z')
+    .replace(/ż/g, 'z').replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+}
+
 export function extractPriceFromText(text: string): number | null {
   const match = text.match(/(\d[\d\s]{2,})\s*(?:zł|PLN)/i);
   if (!match) return null;

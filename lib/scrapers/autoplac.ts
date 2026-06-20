@@ -1,6 +1,6 @@
 import type { CarScraper, ScrapedListingDraft, SearchCriteria } from './types';
 import { CAR_CATALOG, generateListingsForEntry } from './catalog';
-import { normalizeFuelType, normalizeGearbox } from './parseHelpers';
+import { normalizeFuelType, normalizeGearbox, slugifyCity } from './parseHelpers';
 import { getScraperMode } from './mode';
 import { getSettings } from '../settings';
 import { DELAY_MS } from './httpClient';
@@ -65,8 +65,8 @@ async function getCityCoords(cityName: string): Promise<{ lat: number; lon: numb
       citiesCache = [];
     }
   }
-  const lower = cityName.toLowerCase();
-  const match = citiesCache.find((c) => c.displayName.toLowerCase() === lower);
+  const slug = slugifyCity(cityName);
+  const match = citiesCache.find((c) => slugifyCity(c.displayName) === slug);
   return match ? { lat: match.latitude, lon: match.longitude } : null;
 }
 

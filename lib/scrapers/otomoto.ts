@@ -3,22 +3,22 @@ import type { CarScraper, ScrapedListingDraft, SearchCriteria } from './types';
 import { CAR_CATALOG, generateListingsForEntry } from './catalog';
 import { politeFetch } from './httpClient';
 import { categorySearchUrl } from './urls';
-import { normalizeFuelType, normalizeGearbox } from './parseHelpers';
+import { normalizeFuelType, normalizeGearbox, slugifyCity } from './parseHelpers';
 import { getScraperMode } from './mode';
 import { getSettings } from '../settings';
 
 const MAX_LISTINGS_DEFAULT = Number(process.env.SCRAPER_MAX_LISTINGS ?? '8');
 
 function buildSearchUrl(criteria: SearchCriteria, page: number): string {
-  const citySlug = criteria.locationCity?.toLowerCase().replace(/\s+/g, '-') ?? '';
+  const citySlug = criteria.locationCity ? slugifyCity(criteria.locationCity) : '';
   let base: string;
   if (criteria.brand && criteria.model) {
     const catUrl = categorySearchUrl('otomoto', criteria.brand, criteria.model, criteria.urlSlug);
-    base = citySlug ? `${catUrl.replace(/\/$/, '')}/${citySlug}/` : catUrl;
+    base = citySlug ? `${catUrl.replace(/\/$/, '')}/${citySlug}` : catUrl;
   } else {
     base = citySlug
-      ? `https://www.otomoto.pl/osobowe/${citySlug}/`
-      : 'https://www.otomoto.pl/osobowe/';
+      ? `https://www.otomoto.pl/osobowe/${citySlug}`
+      : 'https://www.otomoto.pl/osobowe';
   }
   const parts = [
     'search[order]=created_at:desc',

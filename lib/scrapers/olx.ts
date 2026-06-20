@@ -1,7 +1,7 @@
 import type { CarScraper, ScrapedListingDraft, SearchCriteria } from './types';
 import { CAR_CATALOG, generateListingsForEntry } from './catalog';
 import { politeFetch } from './httpClient';
-import { normalizeFuelType, normalizeGearbox } from './parseHelpers';
+import { normalizeFuelType, normalizeGearbox, slugifyCity } from './parseHelpers';
 import { getScraperMode } from './mode';
 import { getSettings } from '../settings';
 
@@ -29,12 +29,6 @@ async function getSellerCarCount(sellerId: string): Promise<number> {
   }
 }
 
-function slugifyCity(city: string): string {
-  return city.trim().toLowerCase()
-    .replace(/ą/g, 'a').replace(/ć/g, 'c').replace(/ę/g, 'e').replace(/ł/g, 'l')
-    .replace(/ń/g, 'n').replace(/ó/g, 'o').replace(/ś/g, 's').replace(/ź/g, 'z')
-    .replace(/ż/g, 'z').replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-}
 
 interface OlxLocation { cityId: number; regionId: number }
 const locationCache = new Map<string, OlxLocation | null>();
