@@ -43,7 +43,14 @@ export async function ingestListings(
     .where(eq(cars.userId, userId));
   const existingMap = new Map(existing.map((r) => [`${r.source}|${r.externalId}`, r.id]));
 
-  const newDrafts = drafts.filter((d) => !existingMap.has(`${d.source}|${d.externalId}`));
+  // ponytail: dedupe within batch — same listing can appear on multiple pages
+  const seen = new Set<string>();
+  const newDrafts = drafts.filter((d) => {
+    const key = `${d.source}|${d.externalId}`;
+    if (existingMap.has(key) || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
   const updDrafts = drafts.filter((d) => existingMap.has(`${d.source}|${d.externalId}`));
 
   // 2. Fetch otomoto photos for all new listings in parallel (5 concurrent)
@@ -72,15 +79,15 @@ export async function ingestListings(
         brand: d.brand,
         model: d.model,
         generation: d.generation,
-        productionYear: d.productionYear,
-        engineCapacity: d.engineCapacity,
-        enginePower: d.enginePower,
+        productionYear: Math.round(d.productionYear),
+        engineCapacity: d.engineCapacity != null ? Math.round(d.engineCapacity) : undefined,
+        enginePower: d.enginePower != null ? Math.round(d.enginePower) : undefined,
         fuelType: d.fuelType,
         gearbox: d.gearbox,
         bodyType: d.bodyType,
         color: d.color,
-        mileage: d.mileage,
-        price: d.price,
+        mileage: Math.round(d.mileage),
+        price: Math.round(d.price),
         currency: d.currency,
         voivodeship: d.voivodeship,
         city: d.city,

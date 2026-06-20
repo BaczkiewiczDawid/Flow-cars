@@ -26,7 +26,9 @@ export async function POST() {
         );
         send({ finished: true });
       } catch (err) {
-        send({ error: err instanceof Error ? err.message : 'Nieznany błąd skanowania.' });
+        const cause = err instanceof Error ? (err.cause instanceof Error ? err.cause.message : null) : null;
+        const msg = err instanceof Error ? err.message : 'Nieznany błąd skanowania.';
+        send({ error: cause ? `${cause}` : msg });
       } finally {
         controller.close();
       }
