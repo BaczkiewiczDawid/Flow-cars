@@ -8,7 +8,26 @@ import { getSettings } from '../settings';
 const MAX_LISTINGS_DEFAULT = Number(process.env.SCRAPER_MAX_LISTINGS ?? '8');
 
 const OLX_API = 'https://www.olx.pl/api/v1/offers/';
+const OLX_USER_API = 'https://www.olx.pl/api/v1/users/';
 const OLX_CAT_CARS = 84;
+
+// ponytail: module-level cache, lives as long as the process
+const sellerCountCache = new Map<string, number>();
+
+async function getSellerCarCount(sellerId: string): Promise<number> {
+  if (sellerCountCache.has(sellerId)) return sellerCountCache.get(sellerId)!;
+  try {
+    const json = JSON.parse(
+      await politeFetch(`${OLX_USER_API}${sellerId}/offers/?category_id=${OLX_CAT_CARS}&limit=1`)
+    );
+    const count = (json.metadata?.total_count as number | undefined) ?? 0;
+    sellerCountCache.set(sellerId, count);
+    return count;
+  } catch {
+    sellerCountCache.set(sellerId, 0);
+    return 0;
+  }
+}
 
 function slugifyCity(city: string): string {
   return city.trim().toLowerCase()
@@ -164,12 +183,24 @@ async function searchLive(
     console.warn('[olx scraper] Brak wyników z API OLX.');
   }
 
+  // verify private sellers against their actual OLX profile listing count
+  const privateSellerIds = [...new Set(
+    all.filter((l) => l.sellerType === 'prywatny' && l.sellerId).map((l) => l.sellerId!)
+  )];
+  await Promise.allSettled(privateSellerIds.map((id) => getSellerCarCount(id)));
+
+  const dealerIds = new Set(
+    privateSellerIds.filter((id) => (sellerCountCache.get(id) ?? 0) >= dealerThreshold)
+  );
+  if (dealerIds.size > 0) {
+    console.log(`[olx] Odfiltrowano ${dealerIds.size} handlarzy podających się za prywatnych (próg: ${dealerThreshold} ogłoszeń)`);
+  }
+
   const filtered: ScrapedListingDraft[] = [];
   for (const l of all) {
     if (filtered.length >= target) break;
     if (l.sellerType === 'firma') continue;
-    const sid = l.sellerId ?? l.sellerName;
-    if (sid && (sellerCounts.get(sid) ?? 0) >= dealerThreshold) continue;
+    if (l.sellerId && dealerIds.has(l.sellerId)) continue;
     filtered.push(l);
     onListingFetched?.();
   }
