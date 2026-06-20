@@ -10,6 +10,30 @@ const API = 'https://api.autoplac.pl/offers/search';
 const CITIES_API = 'https://api.autoplac.pl/categories/suggested-cities';
 const BASE_URL = 'https://autoplac.pl';
 
+// ponytail: module-level cache, lives as long as the process
+const sellerCountCache = new Map<string, number>();
+
+async function getSellerCarCount(userId: string): Promise<number> {
+  if (sellerCountCache.has(userId)) return sellerCountCache.get(userId)!;
+  try {
+    const params = new URLSearchParams({ seoCategories: 'samochody-osobowe', userId });
+    const res = await fetch(`${API}?${params}`, { headers: HEADERS });
+    if (!res.ok) { sellerCountCache.set(userId, 0); return 0; }
+    const data: any = await res.json();
+    // totalCount / totalElements / totalPages*perPage are common pagination shapes
+    const count: number =
+      data?.totalCount ??
+      data?.totalElements ??
+      data?.pagination?.total ??
+      (data?.offerList?.length ?? 0);
+    sellerCountCache.set(userId, count);
+    return count;
+  } catch {
+    sellerCountCache.set(userId, 0);
+    return 0;
+  }
+}
+
 const HEADERS = {
   Accept: 'application/json, text/plain, */*',
   'Accept-Language': 'pl-PL,pl;q=0.9',
@@ -166,9 +190,17 @@ async function searchLive(
     return true;
   });
 
-  const sellerCounts = new Map<string, number>();
-  for (const l of pool) {
-    if (l.sellerId) sellerCounts.set(l.sellerId, (sellerCounts.get(l.sellerId) ?? 0) + 1);
+  // verify private sellers against their actual Autoplac listing count
+  const privateSellerIds = [...new Set(
+    pool.filter((l) => l.sellerType === 'prywatny' && l.sellerId).map((l) => l.sellerId!)
+  )];
+  await Promise.allSettled(privateSellerIds.map((id) => getSellerCarCount(id)));
+
+  const dealerIds = new Set(
+    privateSellerIds.filter((id) => (sellerCountCache.get(id) ?? 0) >= dealerThreshold)
+  );
+  if (dealerIds.size > 0) {
+    console.log(`[autoplac] Odfiltrowano ${dealerIds.size} handlarzy podających się za prywatnych (próg: ${dealerThreshold} ogłoszeń)`);
   }
 
   const filtered: ScrapedListingDraft[] = [];
@@ -176,7 +208,7 @@ async function searchLive(
     if (filtered.length >= target) break;
     if (!criteria.includeDealers) {
       if (l.sellerType === 'firma') continue;
-      if (l.sellerId && (sellerCounts.get(l.sellerId) ?? 0) >= dealerThreshold) continue;
+      if (l.sellerId && dealerIds.has(l.sellerId)) continue;
     }
     filtered.push(l);
     onListingFetched?.();
