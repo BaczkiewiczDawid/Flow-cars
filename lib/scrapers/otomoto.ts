@@ -155,7 +155,10 @@ async function searchMock(criteria: SearchCriteria): Promise<ScrapedListingDraft
       priceDeviationsPercent: [-31, 6, 13],
     })
   );
-  return criteria.priceMax ? listings.filter((l) => l.price <= criteria.priceMax!) : listings;
+  return listings.filter((l) =>
+    (!criteria.priceMin || l.price >= criteria.priceMin) &&
+    (!criteria.priceMax || l.price <= criteria.priceMax)
+  );
 }
 
 function upscaleUrl(u: unknown): string | null {

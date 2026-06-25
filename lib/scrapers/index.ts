@@ -23,9 +23,12 @@ export async function searchAll(
     )
   );
 
-  // Scraperzy już usunęli handlarzy — tu tylko deduplikacja cross-portal
+  // Scraperzy już usunęli handlarzy — tu filtr cenowy + deduplikacja cross-portal
+  const { priceMin, priceMax } = enriched;
   const seen = new Set<string>();
   return results.flat().filter((l) => {
+    if (priceMin && l.price < priceMin) return false;
+    if (priceMax && l.price > priceMax) return false;
     const key = `${l.price}|${l.productionYear}|${l.mileage}|${(l.city ?? '').toLowerCase()}`;
     if (seen.has(key)) return false;
     seen.add(key);

@@ -215,7 +215,10 @@ async function searchMock(criteria: SearchCriteria): Promise<ScrapedListingDraft
     })
   );
 
-  return criteria.priceMax ? listings.filter((l) => l.price <= criteria.priceMax!) : listings;
+  return listings.filter((l) =>
+    (!criteria.priceMin || l.price >= criteria.priceMin) &&
+    (!criteria.priceMax || l.price <= criteria.priceMax)
+  );
 }
 
 export const olxScraper: CarScraper = {
